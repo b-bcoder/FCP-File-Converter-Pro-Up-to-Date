@@ -45,7 +45,7 @@ It is built with Electron, React, Vite and FFmpeg, allowing it to handle a wide 
 - PDF.js
 - jsPDF
 
-## Installation
+## Installation (for the devs)
 
 Before running the project, install Node.js on your machine. The app uses npm scripts, so Node.js is required for the commands below.
 
