@@ -100,7 +100,7 @@ The generated installer is written to the `release/` folder. It includes Whisper
 
 ### Download the Windows app
 
-End users do not need Node.js or the project source code. Download the latest Windows installer from the [FCP GitHub Releases]([https://github.com/uihorsewolf-design/FCP-File-Converter-Pro-Up-to-Date/releases](https://github.com/b-bcoder/FCP-File-Converter-Pro-Up-to-Date/releases) page and run the `.exe` installer.
+End users do not need Node.js or the project source code. Download the latest Windows installer from the [FCP GitHub Releases](https://github.com/b-bcoder/FCP-File-Converter-Pro-Up-to-Date/releases) page and run the `.exe` installer.
 
 ### Build from source
 
