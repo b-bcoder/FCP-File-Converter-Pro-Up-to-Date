@@ -29,6 +29,7 @@ It is built with Electron, React, Vite and FFmpeg, allowing it to handle a wide 
 - Download results as ZIP archives
 - Protect ZIP archives with AES-256 encryption
 - Protect vault contents with AES-256-GCM and Argon2id-based key derivation
+- Set a custom background image for the app interface
 - Multilingual interface and first-run guide
 - Light and dark mode
 - Borderless fullscreen support with F11
@@ -98,6 +99,8 @@ Developers can install the dependencies and build a new Windows installer locall
 When an output folder is configured, individual downloads and ZIP archives are saved there automatically without opening a Windows save dialog. Without an output folder, Windows asks where each download should be saved.
 
 The optional source-file deletion setting is disabled by default. When enabled, files are first copied to temporary local storage and are deleted from their original location only after the converted output has been written successfully. This action cannot be undone and requires confirmation before each conversion run.
+
+During conversion, the app creates temporary batch folders in `%LOCALAPPDATA%\Temp\fcp-batches\<batch-name>` and stages input files in `%LOCALAPPDATA%\Temp\fcp-staging`. These temporary files are used as local processing backups and are cleaned up automatically after the run finishes.
 
 Conversions can also run without an output folder. In that case, source files are not deleted automatically, even if the deletion setting is enabled.
 
