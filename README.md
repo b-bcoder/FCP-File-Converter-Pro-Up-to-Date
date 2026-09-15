@@ -1,6 +1,6 @@
 # File Converter Pro (FCP)
 
-File Converter Pro is a Windows desktop application for converting image, video, audio and PDF files locally on your device. Conversion and transcription run locally and do not upload your files to an online service. Internet access is only used for the optional GitHub update check.
+File Converter Pro is a Windows desktop application for fast, local conversion of images, videos, audio and PDF files. Conversion and transcription run locally and do not upload your files to an online service. Internet access is only used for the optional GitHub update check.
 
 ## Overview
 
@@ -34,7 +34,7 @@ It is built with Electron, React, Vite and FFmpeg, allowing it to handle a wide 
 - Borderless fullscreen support with F11
 - Dedicated GPU detection and native FFmpeg integration
 
-## Technologies
+## Technologies & security
 
 - Electron
 - React
@@ -44,6 +44,10 @@ It is built with Electron, React, Vite and FFmpeg, allowing it to handle a wide 
 - Sharp
 - PDF.js
 - jsPDF
+- zip.js
+- AES-256-GCM
+- Argon2id
+- Node.js crypto APIs
 
 ## Installation (for the devs)
 
@@ -77,7 +81,7 @@ End users do not need Node.js or the project source code. Download the latest Wi
 
 ### Build from source
 
-Developers can install the dependencies and build a new Windows installer locally with `npm run dist`. The local `whisper-runtime/` folder is required during the build but is not committed to the repository because the Whisper model is larger than GitHub's regular file-upload limit. The runtime is bundled inside the generated installer.
+Developers can install the dependencies and build a new Windows installer locally with `npm run dist`. The generated installer includes Whisper's runtime files and the base English model.
 
 ## Usage
 
