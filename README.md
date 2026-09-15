@@ -50,6 +50,28 @@ It is built with Electron, React, Vite and FFmpeg, allowing it to handle a wide 
 - Argon2id
 - Node.js crypto APIs
 
+## System requirements
+
+FCP is a local desktop app that performs conversion and transcription directly on your machine. Heavy workloads such as batch conversion, video transcoding and Whisper transcription can use a lot of CPU, RAM and temporary disk space.
+
+### Minimum
+
+- Windows 10 or newer (64-bit)
+- 8 GB RAM
+- 4-core / 8-thread CPU or better
+- SSD or HDD with enough free space for temporary files and converted output
+- Dedicated GPU optional, but recommended for smoother video conversion
+
+### Recommended
+
+- Windows 11 (64-bit)
+- 16 GB RAM or more
+- 8-core / 16-thread CPU or better, such as a modern Ryzen 7/9 or Intel i7/i9
+- NVMe SSD preferred for faster temporary file handling and output
+- Dedicated GPU recommended for accelerated video processing and better overall responsiveness
+
+> Note: high CPU usage during conversion is normal. FCP uses native FFmpeg and the bundled Whisper engine locally, so modern multi-core CPUs can be fully utilized while processing large media files or long audio transcriptions.
+
 ## Installation (for the devs)
 
 Before running the project, install Node.js on your machine. The app uses npm scripts, so Node.js is required for the commands below.
@@ -82,7 +104,7 @@ End users do not need Node.js or the project source code. Download the latest Wi
 
 ### Build from source
 
-Developers can install the dependencies and build a new Windows installer locally with `npm run dist`. The generated installer includes Whisper's runtime files and the base English model.
+Developers can easily install the dependencies and create a new Windows installer locally using `npm run dist`. The installer comes with Whisper's runtime files and the base English model. The development build uses native FFmpeg through ffmpeg-static, so there’s no need for any external dependencies.
 
 ## Usage
 
