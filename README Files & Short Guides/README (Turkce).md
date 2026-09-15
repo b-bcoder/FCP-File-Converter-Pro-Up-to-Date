@@ -1,6 +1,6 @@
 # File Converter Pro (FCP)
 
-File Converter Pro, görüntü, video, ses ve PDF dosyalarını yerel olarak dönüştüren bir Windows masaüstü uygulamasıdır. Dosyalar çevrim içi bir servise yüklenmez.
+File Converter Pro, görüntüleri, videoları, ses dosyalarını ve PDF dosyalarını hızlı ve yerel olarak dönüştürmek için bir Windows masaüstü uygulamasıdır. Dosyalar çevrim içi bir servise yüklenmez.
 
 ## Geliştirici
 
@@ -105,7 +105,7 @@ npm run dist
 
 Yükleyici `release/File Converter Pro Setup <sürüm>.exe` konumunda oluşturulur.
 
-## Kullanılan kütüphaneler
+## Teknolojiler
 
 - React ve React DOM: kullanıcı arayüzü
 - TypeScript ve Vite: geliştirme ve derleme
@@ -113,9 +113,10 @@ Yükleyici `release/File Converter Pro Setup <sürüm>.exe` konumunda oluşturul
 - electron-builder: Windows yükleyicisi
 - FFmpeg ve `ffmpeg-static`: video ve ses dönüştürme
 - PDF.js ve jsPDF: PDF okuma ve oluşturma
-- FFmpeg: HEIC/AVIF desteği
-- ImageTracerJS: SVG dönüştürme
 - zip.js: ZIP ve AES-256 şifreleme
+- AES-256-GCM: kasa içeriği şifreleme
+- Argon2id: kasa için parola tabanlı anahtar türetme
+- Node.js crypto API'leri: güvenli dosya ve kasa işleme
 - Tailwind CSS, PostCSS ve Autoprefixer: stil
 - `concurrently`: Vite ve Electron'u birlikte başlatma
 

@@ -1,6 +1,6 @@
 # File Converter Pro (FCP)
 
-File Converter Pro 是一款 Windows 桌面应用，可在本地转换图像、视频、音频和 PDF 文件。文件不会上传到在线服务。
+File Converter Pro 是一款适用于 Windows 的桌面应用程序，用于快速本地转换图像、视频、音频和 PDF 文件。文件不会上传到在线服务。
 
 ## 制作者
 
@@ -105,7 +105,7 @@ npm run dist
 
 安装程序会生成在 `release/File Converter Pro Setup <版本>.exe`。
 
-## 使用的库
+## 技术
 
 - React 和 React DOM：用户界面
 - TypeScript 和 Vite：开发和构建
@@ -113,9 +113,10 @@ npm run dist
 - electron-builder：Windows 安装程序
 - FFmpeg 和 `ffmpeg-static`：视频和音频转换
 - PDF.js 和 jsPDF：读取和创建 PDF
-- FFmpeg：HEIC/AVIF 支持
-- ImageTracerJS：SVG 转换
 - zip.js：ZIP 文件和 AES-256 加密
+- AES-256-GCM：保险库内容加密
+- Argon2id：基于密码的保险库密钥派生
+- Node.js crypto API：安全的文件与保险库处理
 - Tailwind CSS、PostCSS 和 Autoprefixer：样式
 - `concurrently`：同时启动 Vite 和 Electron
 

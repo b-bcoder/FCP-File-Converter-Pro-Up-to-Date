@@ -1,6 +1,6 @@
 # File Converter Pro (FCP)
 
-File Converter Pro is a Windows desktop application for converting image, video, audio and PDF files locally. Files are not uploaded to an online service.
+File Converter Pro is a Windows desktop application for fast, local conversion of images, videos, audio and PDF files. Files are not uploaded to an online service.
 
 ## Creator
 
@@ -109,7 +109,7 @@ npm run dist
 
 The installer is created at `release/File Converter Pro Setup <version>.exe`.
 
-## Libraries
+## Technologies
 
 - React and React DOM: user interface
 - TypeScript and Vite: development and builds

@@ -109,7 +109,7 @@ npm run dist
 
 De installer wordt gemaakt in `release/File Converter Pro Setup <versie>.exe`.
 
-## Libraries
+## Technologieën
 
 - React en React DOM: gebruikersinterface
 - TypeScript en Vite: development en build
@@ -117,10 +117,10 @@ De installer wordt gemaakt in `release/File Converter Pro Setup <versie>.exe`.
 - electron-builder: Windows-installer
 - FFmpeg en `ffmpeg-static`: video- en audioconversie
 - PDF.js en jsPDF: PDF lezen en maken
-- FFmpeg: HEIC/AVIF
-- ImageTracerJS: SVG-conversie
 - zip.js: ZIP en AES-256
-- `@node-rs/argon2`: Argon2id-sleutelafleiding voor de kluis
+- AES-256-GCM: versleuteling van kluisinhoud
+- Argon2id: wachtwoordgebaseerde sleutelafleiding voor de kluis
+- Node.js crypto APIs: veilige verwerking van bestanden en kluisdata
 - Tailwind CSS, PostCSS en Autoprefixer: styling
 - `concurrently`: Vite en Electron tegelijk starten
 

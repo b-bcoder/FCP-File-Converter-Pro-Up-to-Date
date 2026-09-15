@@ -109,7 +109,7 @@ npm run dist
 
 L'installateur est créé dans `release/File Converter Pro Setup <version>.exe`.
 
-## Bibliothèques
+## Technologies
 
 - React et React DOM : interface utilisateur
 - TypeScript et Vite : développement et builds
@@ -117,9 +117,10 @@ L'installateur est créé dans `release/File Converter Pro Setup <version>.exe`.
 - electron-builder : installateur Windows
 - FFmpeg et `ffmpeg-static` : conversion vidéo et audio
 - PDF.js et jsPDF : lecture et création de PDF
-- FFmpeg : prise en charge HEIC/AVIF
-- ImageTracerJS : conversion SVG
 - zip.js : archives ZIP et chiffrement AES-256
+- AES-256-GCM : chiffrement du contenu du coffre
+- Argon2id : dérivation de clé basée sur le mot de passe pour le coffre
+- APIs crypto Node.js : traitement sécurisé des fichiers et du coffre
 - Tailwind CSS, PostCSS et Autoprefixer : styles
 - `concurrently` : lancer Vite et Electron ensemble
 
