@@ -715,9 +715,6 @@ const App: React.FC = () => {
     batchStartedAtRef.current = Date.now();
 
     const electronApi = (window as any).electronAPI;
-    const tempDirectory = (await electronApi?.getTempDirectory?.()) || '';
-    const batchDirectoryName = getBatchDirectoryName();
-    const batchTempDirectory = tempDirectory ? `${tempDirectory.replace(/[\\/]$/, '')}/fcp-batches/${batchDirectoryName}` : null;
   
     // Special handling for combining images into a single PDF
     const pdfImageFiles = files.filter(f => {
@@ -866,31 +863,12 @@ const App: React.FC = () => {
         }
 
         const url = URL.createObjectURL(convertedBlob);
-        const convertedBuffer = await convertedBlob.arrayBuffer();
-
-        if (batchTempDirectory) {
-          const relativePath = fileItem.relativePath || file.name;
-          const sourceName = relativePath.replace(/\\/g, '/');
-          const dotIndex = sourceName.lastIndexOf('.');
-          const tempOutputName = `${dotIndex > -1 ? sourceName.slice(0, dotIndex) : sourceName}.${targetFormat?.toLowerCase()}`;
-          const tempOutputPath = `${batchTempDirectory.replace(/[\\/]$/, '')}/${tempOutputName}`;
-          await electronApi.writeOutputFile(tempOutputPath, convertedBuffer);
-        }
-
-        if (outputDirectory && !vaultStatus.enabled && electronApi?.writeOutputFile) {
-          const relativePath = fileItem.relativePath || file.name;
-          const sourceName = relativePath.replace(/\\/g, '/');
-          const dotIndex = sourceName.lastIndexOf('.');
-          const outputName = `${dotIndex > -1 ? sourceName.slice(0, dotIndex) : sourceName}.${targetFormat?.toLowerCase()}`;
-          const outputPath = `${outputDirectory.replace(/[\\/]$/, '')}/${outputName}`;
-          await electronApi.writeOutputFile(outputPath, convertedBuffer);
-          if (sourcePath) {
-            pendingSourceDeletionsRef.current = pendingSourceDeletionsRef.current.includes(sourcePath)
-              ? pendingSourceDeletionsRef.current
-              : [...pendingSourceDeletionsRef.current, sourcePath];
-          }
-        }
         updateFileState(id, { convertedFileUrl: url, status: 'success', progress: 100 });
+
+        if (deleteSources && sourcePath && !pendingSourceDeletionsRef.current.includes(sourcePath)) {
+          pendingSourceDeletionsRef.current.push(sourcePath);
+        }
+
         conversionTimings.push({ fileName: file.name, seconds: (performance.now() - conversionStartedAt) / 1000, status: 'success' });
       } catch (err: any) {
         const message = String(err);
