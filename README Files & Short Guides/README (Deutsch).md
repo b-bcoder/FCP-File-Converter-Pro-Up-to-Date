@@ -29,6 +29,28 @@ File Converter Pro ist eine Windows-Desktop-Anwendung für die schnelle, lokale 
 - Randloser Vollbildmodus mit `F11`
 - Erkennung dedizierter GPUs und natives FFmpeg in Electron
 
+## Systemanforderungen
+
+FCP ist eine lokale Desktop-App, die Konvertierungen und Transkriptionen direkt auf Ihrem Rechner ausführt. Bei anspruchsvollen Aufgaben wie Batch-Konvertierungen, Videotranscoding und Whisper-Transkriptionen können CPU, Arbeitsspeicher und temporärer Speicherplatz stark beansprucht werden.
+
+### Mindestanforderungen
+
+- Windows 10 oder neuer (64-Bit)
+- 8 GB RAM
+- CPU mit 4 Kernen / 8 Threads oder besser
+- SSD oder HDD mit ausreichend freiem Speicherplatz für temporäre Dateien und Ausgabedateien
+- Dedizierte GPU optional, aber für flüssigere Videokonvertierungen empfohlen
+
+### Empfohlen
+
+- Windows 11 (64-Bit)
+- 16 GB RAM oder mehr
+- CPU mit 8 Kernen / 16 Threads oder besser, z. B. modernes Ryzen 7/9 oder Intel i7/i9
+- NVMe-SSD bevorzugt für schnellere temporäre Dateiverarbeitung und Ausgaben
+- Dedizierte GPU empfohlen für beschleunigte Videobearbeitung und bessere Gesamtreaktion
+
+> Hinweis: Hohe CPU-Auslastung während der Konvertierung ist normal. FCP verwendet lokal native FFmpeg- und Whisper-Engines, daher können moderne Mehrkernprozessoren bei großen Mediendateien oder langen Audio-Transkriptionen vollständig ausgelastet werden.
+
 ## Installation
 
 1. Öffnen Sie den Ordner `release`.

@@ -29,6 +29,28 @@ File Converter Pro, görüntüleri, videoları, ses dosyalarını ve PDF dosyala
 - `F11` ile kenarlıksız tam ekran
 - Özel GPU algılama ve Electron içinde yerel FFmpeg
 
+## Sistem gereksinimleri
+
+FCP, dönüştürme ve transkripsiyon işlemlerini doğrudan bilgisayarınızda çalışan yerel bir masaüstü uygulamasıdır. Toplu dönüştürme, video dönüştürme ve Whisper transkripsiyonu gibi ağır işlemler yüksek CPU, RAM ve geçici depolama alanı kullanabilir.
+
+### Minimum
+
+- Windows 10 veya üzeri (64-bit)
+- 8 GB RAM
+- 4 çekirdek / 8 iş parçacıklı CPU veya daha iyi
+- Geçici dosyalar ve dönüştürülen çıktı için yeterli boş alan sağlayan SSD veya HDD
+- Özel GPU isteğe bağlıdır, ancak daha akıcı video dönüştürme için önerilir
+
+### Önerilen
+
+- Windows 11 (64-bit)
+- 16 GB RAM veya daha fazla
+- 8 çekirdek / 16 iş parçacıklı CPU veya daha iyi; örneğin modern Ryzen 7/9 veya Intel i7/i9
+- Geçici dosya işleme ve çıktı için NVMe SSD tercih edilir
+- Hızlandırılmış video işleme ve daha iyi genel yanıt süresi için özel GPU önerilir
+
+> Not: dönüştürme sırasında yüksek CPU kullanımı normaldir. FCP yerel olarak native FFmpeg ve birlikte gelen Whisper motorunu kullanır; bu yüzden modern çok çekirdekli CPU'lar büyük medya dosyaları veya uzun ses transkripsiyonları işlenirken tam kapasiteyle kullanılabilir.
+
 ## Kurulum
 
 1. `release` klasörünü açın.
