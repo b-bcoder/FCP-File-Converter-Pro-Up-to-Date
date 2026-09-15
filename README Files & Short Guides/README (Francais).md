@@ -25,6 +25,7 @@ File Converter Pro est une application de bureau Windows qui convertit localemen
 - Protéger le contenu du coffre avec AES-256-GCM et Argon2id
 - Interface multilingue et guide au premier démarrage
 - Thèmes clair et sombre
+- Arrière-plan réglable
 - Plein écran sans bordure avec `F11`
 - Détection du GPU dédié et FFmpeg natif dans Electron
 

@@ -2,6 +2,69 @@ export const translations = {
   app_title: {
     en: "File Converter Pro (FCP)", nl: "Bestandsconverter Pro (FCP)", tr: "Dosya Dönüştürücü Pro (FCP)", zh: "文件转换器专业版 (FCP)", ja: "ファイルコンバータープロ (FCP)", fr: "Convertisseur de fichiers Pro (FCP)", de: "Dateikonverter Pro (FCP)",
   },
+  settings: {
+    en: "Settings", nl: "Instellingen", tr: "Ayarlar", zh: "设置", ja: "設定", fr: "Paramètres", de: "Einstellungen",
+  },
+  back: {
+    en: "Back", nl: "Terug", tr: "Geri", zh: "返回", ja: "戻る", fr: "Retour", de: "Zurück",
+  },
+  language_label: {
+    en: "Language", nl: "Taal", tr: "Dil", zh: "语言", ja: "言語", fr: "Langue", de: "Sprache",
+  },
+  background: {
+    en: "Background", nl: "Achtergrond", tr: "Arka plan", zh: "背景", ja: "背景", fr: "Arrière-plan", de: "Hintergrund",
+  },
+  default_wallpaper: {
+    en: "Default wallpaper", nl: "Standaard achtergrond", tr: "Varsayılan duvar kağıdı", zh: "默认壁纸", ja: "デフォルトの壁紙", fr: "Papier peint par défaut", de: "Standard-Hintergrund",
+  },
+  add_background: {
+    en: "Add background", nl: "Achtergrond toevoegen", tr: "Arka plan ekle", zh: "添加背景", ja: "背景を追加", fr: "Ajouter un arrière-plan", de: "Hintergrund hinzufügen",
+  },
+  change_background: {
+    en: "Change background", nl: "Achtergrond wijzigen", tr: "Arka planı değiştir", zh: "更改背景", ja: "背景を変更", fr: "Changer l’arrière-plan", de: "Hintergrund ändern",
+  },
+  turn_background_off: {
+    en: "Turn background off", nl: "Achtergrond uitzetten", tr: "Arka planı kapat", zh: "关闭背景", ja: "背景をオフにする", fr: "Désactiver l’arrière-plan", de: "Hintergrund aus",
+  },
+  ui_transparency: {
+    en: "UI transparency", nl: "UI-transparantie", tr: "UI saydamlığı", zh: "界面透明度", ja: "UIの透明度", fr: "Transparence de l’interface", de: "UI-Transparenz",
+  },
+  ui_transparency_help: {
+    en: "Makes the conversion panel more transparent so the wallpaper stays visible.", nl: "Maakt het conversiepaneel transparanter zodat de achtergrond zichtbaar blijft.", tr: "Dönüştürme panelini daha şeffaf hale getirerek duvar kağıdının görünmesini sağlar.", zh: "让转换面板更透明，以便壁纸保持可见。", ja: "変換パネルをより透明にして、壁紙が見えるようにします。", fr: "Rend le panneau de conversion plus transparent pour que le papier peint reste visible.", de: "Macht das Konvertierungsfenster transparenter, damit der Hintergrund sichtbar bleibt.",
+  },
+  set_output_folder_as_vault: {
+    en: "Set output folder as vault", nl: "Doelpad instellen als kluis", tr: "Çıktı klasörünü kasaya ayarla", zh: "将输出文件夹设为保险库", ja: "出力フォルダーを保管庫として設定", fr: "Définir le dossier de sortie comme coffre-fort", de: "Ausgabeordner als Tresor festlegen",
+  },
+  vault_only_from_app: {
+    en: "Encrypted files are only stored from this app.", nl: "Versleutelde bestanden worden alleen vanuit deze app opgeslagen.", tr: "Şifrelenmiş dosyalar yalnızca bu uygulamadan saklanır.", zh: "加密文件仅可通过此应用保存。", ja: "暗号化されたファイルはこのアプリからのみ保存されます。", fr: "Les fichiers chiffrés ne sont stockés que depuis cette application.", de: "Verschlüsselte Dateien werden nur über diese App gespeichert.",
+  },
+  vault_files: {
+    en: "Vault files", nl: "Kluisbestanden", tr: "Kasa dosyaları", zh: "保险库文件", ja: "保管庫のファイル", fr: "Fichiers du coffre-fort", de: "Tresordateien",
+  },
+  vault_files_help: {
+    en: "Open, export, or remove files from the app.", nl: "Open, exporteer of verwijder bestanden vanuit de app.", tr: "Uygulamadan dosyaları aç, dışa aktar veya kaldır.", zh: "在应用中打开、导出或删除文件。", ja: "アプリからファイルを開いたり、エクスポートしたり、削除したりできます。", fr: "Ouvrez, exportez ou supprimez des fichiers depuis l’application.", de: "Dateien über die App öffnen, exportieren oder entfernen.",
+  },
+  open_vault: {
+    en: "Open vault", nl: "Kluis openen", tr: "Kasayı aç", zh: "打开保险库", ja: "保管庫を開く", fr: "Ouvrir le coffre-fort", de: "Tresor öffnen",
+  },
+  vault_unlocked: {
+    en: "Unlocked vault", nl: "Ontgrendelde kluis", tr: "Kilit açılmış kasa", zh: "已解锁的保险库", ja: "ロックを解除した保管庫", fr: "Coffre-fort déverrouillé", de: "Entsperrter Tresor",
+  },
+  close: {
+    en: "Close", nl: "Sluiten", tr: "Kapat", zh: "关闭", ja: "閉じる", fr: "Fermer", de: "Schließen",
+  },
+  vault_empty: {
+    en: "The vault is empty.", nl: "De kluis is leeg.", tr: "Kasa boş.", zh: "保险库为空。", ja: "保管庫は空です。", fr: "Le coffre-fort est vide.", de: "Der Tresor ist leer.",
+  },
+  export: {
+    en: "Export", nl: "Exporteren", tr: "Dışa aktar", zh: "导出", ja: "エクスポート", fr: "Exporter", de: "Exportieren",
+  },
+  delete: {
+    en: "Delete", nl: "Verwijderen", tr: "Sil", zh: "删除", ja: "削除", fr: "Supprimer", de: "Löschen",
+  },
+  language: {
+    en: "Language", nl: "Taal", tr: "Dil", zh: "语言", ja: "言語", fr: "Langue", de: "Sprache",
+  },
   media_engine: {
     en: "Media Engine", nl: "Media-engine", tr: "Medya Motoru", zh: "媒体引擎", ja: "メディアエンジン", fr: "Moteur multimédia", de: "Medien-Engine",
   },
@@ -72,7 +135,7 @@ export const translations = {
     en: "Delete source files after successful conversion", nl: "Bronbestanden verwijderen na succesvolle conversie", tr: "Başarılı dönüşümden sonra kaynak dosyaları sil", zh: "转换成功后删除源文件", ja: "変換成功後に元ファイルを削除", fr: "Supprimer les fichiers source après conversion réussie", de: "Quelldateien nach erfolgreicher Konvertierung löschen",
   },
   delete_sources_warning: {
-    en: "The original files will be copied to temporary storage and deleted only after the converted files have been written successfully. This cannot be undone. Continue?", nl: "De originele bestanden worden naar tijdelijke opslag gekopieerd en pas verwijderd nadat de geconverteerde bestanden succesvol zijn opgeslagen. Dit kan niet ongedaan worden gemaakt. Doorgaan?", tr: "Orijinal dosyalar geçici depolamaya kopyalanacak ve yalnızca dönüştürülen dosyalar başarıyla yazıldıktan sonra silinecek. Bu işlem geri alınamaz. Devam edilsin mi?", zh: "原始文件将复制到临时存储，仅在转换文件成功写入后删除。此操作无法撤销。是否继续？", ja: "元ファイルは一時保存され、変換後のファイルが正常に書き込まれた後にのみ削除されます。この操作は元に戻せません。続行しますか？", fr: "Les fichiers originaux seront copiés dans un stockage temporaire et supprimés uniquement après l’écriture réussie des fichiers convertis. Cette action est irréversible. Continuer ?", de: "Die Originaldateien werden in einen temporären Speicher kopiert und erst gelöscht, nachdem die konvertierten Dateien erfolgreich geschrieben wurden. Dies kann nicht rückgängig gemacht werden. Fortfahren?",
+    en: "The original files will be copied to temporary storage and deleted only after the ZIP export has completed and you explicitly confirm it. This cannot be undone. Continue?", nl: "De originele bestanden worden naar tijdelijke opslag gekopieerd en pas verwijderd nadat de ZIP-export is afgerond en u expliciet bevestigt. Dit kan niet ongedaan worden gemaakt. Doorgaan?", tr: "Orijinal dosyalar geçici depolamaya kopyalanacak ve yalnızca ZIP dışa aktarma tamamlandıktan ve siz açıkça onayladıktan sonra silinecek. Bu işlem geri alınamaz. Devam edilsin mi?", zh: "原始文件将复制到临时存储，仅在 ZIP 导出完成并且您明确确认后删除。此操作无法撤销。是否继续？", ja: "元ファイルは一時保存され、ZIPエクスポートが完了し、明示的に確認した後にのみ削除されます。この操作は元に戻せません。続行しますか？", fr: "Les fichiers originaux seront copiés dans un stockage temporaire et supprimés uniquement après la fin de l’export ZIP et votre confirmation explicite. Cette action est irréversible. Continuer ?", de: "Die Originaldateien werden in einen temporären Speicher kopiert und erst gelöscht, nachdem der ZIP-Export abgeschlossen ist und Sie dies ausdrücklich bestätigen. Dies kann nicht rückgängig gemacht werden. Fortfahren?",
   },
   bulk_actions: {
     en: "Bulk Actions", nl: "Bulkacties", tr: "Toplu İşlemler", zh: "批量操作", ja: "一括操作", fr: "Actions groupées", de: "Massenaktionen",

@@ -25,6 +25,7 @@ File Converter Pro is een Windows-desktopapp waarmee je afbeeldingen, video, aud
 - Kluisinhoud beveiligen met AES-256-GCM en Argon2id
 - Meertalige interface en eerste-start uitleg
 - Donkere en lichte weergave
+- Instelbare achtergrond
 - Borderless fullscreen met `F11`
 - Dedicated-GPU-detectie en native FFmpeg in Electron
 

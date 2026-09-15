@@ -25,6 +25,7 @@ File Converter Pro, görüntü, video, ses ve PDF dosyalarını yerel olarak dö
 - Kasa içeriğini AES-256-GCM ve Argon2id ile koruma
 - Çok dilli arayüz ve ilk açılış kılavuzu
 - Açık ve koyu tema
+- Ayarlanabilir arka plan
 - `F11` ile kenarlıksız tam ekran
 - Özel GPU algılama ve Electron içinde yerel FFmpeg
 

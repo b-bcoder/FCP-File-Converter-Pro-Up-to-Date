@@ -25,6 +25,7 @@ File Converter Pro is a Windows desktop application for converting image, video,
 - Protect vault contents with AES-256-GCM and Argon2id
 - Multilingual interface and first-run guide
 - Light and dark themes
+- Adjustable background
 - Borderless fullscreen with `F11`
 - Dedicated-GPU detection and native FFmpeg in Electron
 

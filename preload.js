@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 	readFile: (filePath) => ipcRenderer.invoke('fcp:read-file', filePath),
 	writeFile: (filePath, data) => ipcRenderer.invoke('fcp:write-file', filePath, data),
 	chooseOutputDirectory: () => ipcRenderer.invoke('fcp:choose-output-directory'),
+	getTempDirectory: () => ipcRenderer.invoke('fcp:get-temp-directory'),
 	writeOutputFile: (filePath, data) => ipcRenderer.invoke('fcp:write-output-file', filePath, data),
 	writeDebugReport: (options) => ipcRenderer.invoke('fcp:write-debug-report', options),
 	getVaultStatus: () => ipcRenderer.invoke('fcp:get-vault-status'),

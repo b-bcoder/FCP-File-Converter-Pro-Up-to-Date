@@ -10,7 +10,7 @@ const { hashRaw } = require('@node-rs/argon2');
 
 const isDevelopment = !app.isPackaged;
 const developmentUrl = 'http://localhost:3000';
-const updateRepository = 'uihorsewolf-design/FCP-File-Converter-Pro-Up-to-Date';
+const updateRepository = 'b-bcoder/FCP-File-Converter-Pro-Up-to-Date';
 const iconPath = path.join(__dirname, 'assets', 'icon.ico');
 const whisperRuntimePath = app.isPackaged
   ? path.join(process.resourcesPath, 'whisper-runtime')
@@ -26,6 +26,58 @@ const gpuInfo = detectGpu();
 const nativeFfmpegPath = app.isPackaged
   ? ffmpegPath.replace('app.asar', 'app.asar.unpacked')
   : ffmpegPath;
+
+function summarizeFfmpegError(output) {
+  const text = String(output || '').replace(/\r/g, '').trim();
+
+  if (!text) {
+    return 'Conversion failed. The file could not be converted.';
+  }
+
+  const lower = text.toLowerCase();
+
+  if (/no sequence header|bitstream not supported by this decoder|corrupt frame detected|failed to decode frame|error while decoding/i.test(lower)) {
+    return 'Conversion failed: the source file appears to be corrupted or uses an unsupported codec/encoding.';
+  }
+
+  if (/invalid data found when processing input|moov atom|is not a supported file|could not find codec parameters|unable to decode/i.test(lower)) {
+    return 'Conversion failed: the source file is damaged or in an unsupported format.';
+  }
+
+  if (/stalled for over 60 seconds|timed out|sigkill/i.test(lower)) {
+    return 'Conversion failed: the conversion stalled and could not finish.';
+  }
+
+  if (/no such file or directory|could not open|not found/i.test(lower)) {
+    return 'Conversion failed: the source file could not be found or opened.';
+  }
+
+  if (/unsupported codec|unknown codec|codec not currently supported/i.test(lower)) {
+    return 'Conversion failed: the selected output format is not supported for this source file.';
+  }
+
+  const usefulLines = text
+    .split(/\n+/)
+    .map(line => line.trim())
+    .filter(Boolean)
+    .filter(line => !/^ffmpeg version/i.test(line))
+    .filter(line => !/^libav/i.test(line))
+    .filter(line => !/^configuration:/i.test(line))
+    .filter(line => !/^built with/i.test(line))
+    .filter(line => !/^input #/i.test(line))
+    .filter(line => !/^output #/i.test(line))
+    .filter(line => !/^stream mapping:/i.test(line))
+    .filter(line => !/^\[.*\]$/.test(line));
+
+  const meaningfulLine = usefulLines.find(line => !/copyright|all rights reserved|freely distributed/i.test(line));
+
+  if (meaningfulLine) {
+    const cleanMessage = meaningfulLine.replace(/^error:/i, '').trim();
+    return cleanMessage.length > 120 ? 'Conversion failed. The file could not be converted with the current settings.' : `Conversion failed: ${cleanMessage}.`;
+  }
+
+  return 'Conversion failed. The file could not be converted with the current settings.';
+}
 
 if (process.platform === 'win32') {
   app.setAppUserModelId('com.fcp.fileconverter');
@@ -132,13 +184,7 @@ ipcMain.handle('fcp:save-vault-file', async (_event, options) => {
   if (!config) throw new Error('No vault is configured.');
   const key = await deriveVaultKey(String(options?.password || ''), config.salt);
   decryptVaultPayload(config.verifier, key);
-  const rawData = options?.data;
-  const data = Buffer.isBuffer(rawData)
-    ? rawData
-    : rawData instanceof ArrayBuffer
-      ? Buffer.from(rawData)
-      : Buffer.from(rawData?.buffer || rawData || []);
-  if (data.length === 0) throw new Error('The ZIP file is empty.');
+  const data = Buffer.from(options?.data || []);
   const fileName = path.basename(String(options?.fileName || 'converted-files.zip'));
   const vaultDirectory = path.join(config.outputDirectory, '.fcp-vault');
   await fs.mkdir(vaultDirectory, { recursive: true });
@@ -148,14 +194,7 @@ ipcMain.handle('fcp:save-vault-file', async (_event, options) => {
   const containerData = Buffer.from(JSON.stringify(encryptVaultPayload(payload, key)), 'utf8');
   if (currentSize + containerData.length > config.quotaBytes) throw new Error('The vault quota has been reached.');
   const storagePath = path.join(vaultDirectory, `${randomUUID()}.fcpv`);
-  const temporaryPath = `${storagePath}.tmp`;
-  try {
-    await fs.writeFile(temporaryPath, containerData, { flag: 'wx' });
-    await fs.rename(temporaryPath, storagePath);
-  } catch (error) {
-    await fs.rm(temporaryPath, { force: true }).catch(() => undefined);
-    throw new Error(`Could not save the ZIP in the vault: ${error?.message || error}`);
-  }
+  await fs.writeFile(storagePath, containerData, { flag: 'wx' });
   return { storagePath, bytes: data.length };
 });
 
@@ -382,6 +421,7 @@ ipcMain.handle('fcp:choose-output-directory', async () => {
   const result = await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'] });
   return result.canceled ? null : result.filePaths[0] || null;
 });
+ipcMain.handle('fcp:get-temp-directory', async () => app.getPath('temp'));
 ipcMain.handle('fcp:write-output-file', async (_event, filePath, data) => {
   const resolvedPath = path.resolve(String(filePath));
   await fs.mkdir(path.dirname(resolvedPath), { recursive: true });
@@ -505,7 +545,7 @@ ipcMain.handle('fcp:convert-media', async (event, fileData, fileName, targetForm
           clearInterval(timeoutId);
           activeConversionProcess = null;
           if (code === 0) resolve();
-          else reject(new Error(errorOutput.trim() || `FFmpeg exited with code ${code}`));
+          else reject(new Error(summarizeFfmpegError(errorOutput) || `FFmpeg exited with code ${code}`));
         });
       });
     };

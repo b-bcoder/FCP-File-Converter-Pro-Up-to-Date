@@ -6,14 +6,50 @@ This project uses the structure of [Keep a Changelog](https://keepachangelog.com
 
 ## [Unreleased]
 
-### Planned
+## [1.0.7-patch2] - 2026-09-15
 
-- Further optimization of the conversion speed
-- Expansion of GPU support for more codecs
-- Further improvement of the user interface
+### Changed
+
+- Improved conversion error handling so FFmpeg failures are summarized into short, readable messages instead of long raw error dumps
+- Reduced noisy conversion failure output to make troubleshooting faster and clearer for end users
+
+## [1.0.7-patch1] - 2026-09-15
+
+### Changed
+
+- Improved language text consistency across the onboarding flow and settings screens
+- Fixed remaining untranslated and incorrect UI wording so the selected language is applied consistently throughout the app
+
+## [1.0.7] - 2026-09-10
+
+### Added
+
 - Automatic background installation of updates after explicit user confirmation
+- Improved GPU detection and hardware-aware video conversion handling
+- Additional UI refinements and onboarding polish for a smoother first-run experience
+- Continued conversion performance improvements, including batch ETA tracking and clearer processing feedback
 
-## [1.0.5.1] - 2026-09-07
+### Changed
+
+- Update checks now surface an install prompt and launch the Windows installer without requiring manual download steps
+- GPU-assisted video conversion now uses detected hardware capabilities more consistently for compatible output formats
+- The user interface has been refined in several areas to improve readability, flow, and usability during batch conversions
+
+## [1.0.6‑patch1] - 2026-09-10
+
+### Added
+
+- Temporary batch folders in the system temp directory (%LOCALAPPDATA%\Temp\fcp-batches) for each conversion run
+- Automatic per-batch backup copies of converted files while processing
+- Explicit confirmation step before deleting source files after a successful ZIP export
+
+### Changed
+
+- Source files are no longer deleted immediately after conversion output is written
+- `Delete source files after successful conversion` now defers deletion until the user confirms removal after ZIP export completes
+- Batch folders are named using the conversion date and batch number, and remain unchanged after the app finishes
+
+## [1.0.6] - 2026-09-07
 
 ### Added
 
@@ -38,7 +74,7 @@ This project uses the structure of [Keep a Changelog](https://keepachangelog.com
 - Vault passwords must contain at least 10 characters and are never stored in local storage
 - Existing legacy `.fcpv` containers remain readable as unnamed encrypted ZIP files
 
-## [1.0.4] - 2026-09-07
+## [1.0.3-patch1] - 2026-09-07
 
 ### Changed
 
@@ -217,7 +253,9 @@ This project uses the structure of [Keep a Changelog](https://keepachangelog.com
 - Basic configuration for Electron-builder
 - Local preload and main process structure
 
-[Unreleased]: https://github.com/uihorsewolf-design/FCP-File-Converter-Pro-Up-to-Date/compare/v1.0.4...HEAD
+[Unreleased]: https://github.com/uihorsewolf-design/FCP-File-Converter-Pro-Up-to-Date/compare/v0.0.3...HEAD
+[1.0.7]: https://github.com/uihorsewolf-design/FCP-File-Converter-Pro-Up-to-Date/releases/tag/v1.0.7
+[1.0.6]: https://github.com/uihorsewolf-design/FCP-File-Converter-Pro-Up-to-Date/releases/tag/v1.0.6
 [1.0.5]: https://github.com/uihorsewolf-design/FCP-File-Converter-Pro-Up-to-Date/releases/tag/v1.0.5
 [1.0.4]: https://github.com/uihorsewolf-design/FCP-File-Converter-Pro-Up-to-Date/releases/tag/v1.0.4
 [0.0.3]: https://github.com/uihorsewolf-design/FCP-File-Converter-Pro-Up-to-Date/releases/tag/v0.0.3

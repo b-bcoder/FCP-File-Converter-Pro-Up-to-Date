@@ -256,9 +256,9 @@ const OnboardingModal: React.FC<{
       <div className="w-full max-w-lg rounded-xl bg-white p-7 text-gray-900 shadow-2xl dark:bg-gray-800 dark:text-white sm:p-9">
         {step === 'language' ? (
           <>
-            <h2 className="text-2xl font-bold text-cyan-600 dark:text-cyan-400">Choose your language</h2>
-            <p className="mt-3 text-sm text-gray-600 dark:text-gray-300">Select the language you want to use in File Converter Pro.</p>
-            <label htmlFor="onboarding-language" className="mt-6 block text-sm font-semibold">Language</label>
+            <h2 className="text-2xl font-bold text-cyan-600 dark:text-cyan-400">{t('onboarding_language_title', language)}</h2>
+            <p className="mt-3 text-sm text-gray-600 dark:text-gray-300">{t('onboarding_language_text', language)}</p>
+            <label htmlFor="onboarding-language" className="mt-6 block text-sm font-semibold">{t('language_label', language)}</label>
             <select
               id="onboarding-language"
               value={language}
@@ -268,7 +268,7 @@ const OnboardingModal: React.FC<{
               {appLanguages.map(item => <option key={item.code} value={item.code}>{item.flag} {item.name}</option>)}
             </select>
             <button onClick={() => setStep('guide')} className="mt-7 w-full rounded-md bg-cyan-500 px-4 py-3 font-bold text-white transition hover:bg-cyan-600">
-              Continue
+              {t('onboarding_continue', language)}
             </button>
           </>
         ) : (
@@ -329,6 +329,7 @@ const App: React.FC = () => {
   const [isVaultBrowserOpen, setIsVaultBrowserOpen] = useState(false);
   const [zipDestination, setZipDestination] = useState<'folder' | 'vault'>('folder');
   const [deleteSources, setDeleteSources] = useState(() => localStorage.getItem('delete-sources') === 'true');
+  const pendingSourceDeletionsRef = useRef<string[]>([]);
   const [wallpaper, setWallpaper] = useState<{ enabled: boolean; path: string | null; dataUrl: string | null }>({ enabled: false, path: null, dataUrl: null });
   const [showOnboarding, setShowOnboarding] = useState(() => localStorage.getItem('onboarding-complete') !== 'true');
   const [combineToPdf, setCombineToPdf] = useState(false);
@@ -590,6 +591,57 @@ const App: React.FC = () => {
     );
   }, []);
 
+  const getBatchDirectoryName = useCallback(() => {
+    const today = new Date();
+    const dayKey = today.toISOString().slice(0, 10);
+    const savedBatches = (() => {
+      try {
+        const stored = localStorage.getItem('fcp-batch-counts');
+        return stored ? JSON.parse(stored) : {};
+      } catch {
+        return {};
+      }
+    })();
+
+    const nextBatchNumber = Number(savedBatches[dayKey] || 0) + 1;
+    savedBatches[dayKey] = nextBatchNumber;
+    localStorage.setItem('fcp-batch-counts', JSON.stringify(savedBatches));
+    return `${dayKey}-batch-${nextBatchNumber}`;
+  }, []);
+
+  const handlePendingSourceDeletion = useCallback(async () => {
+    const pathsToDelete = pendingSourceDeletionsRef.current;
+
+    if (!deleteSources || pathsToDelete.length === 0) {
+      pendingSourceDeletionsRef.current = [];
+      return;
+    }
+
+    const shouldDelete = window.confirm(t('delete_sources_warning', language));
+    if (!shouldDelete) {
+      pendingSourceDeletionsRef.current = [];
+      return;
+    }
+
+    const electronApi = (window as any).electronAPI;
+    const failedPaths: string[] = [];
+
+    for (const sourcePath of pathsToDelete) {
+      try {
+        if (sourcePath) await electronApi?.deleteSourceFile?.(sourcePath);
+      } catch (error) {
+        console.warn('Failed to delete source file after confirmation.', error);
+        failedPaths.push(sourcePath);
+      }
+    }
+
+    if (failedPaths.length > 0) {
+      alert(`Kon ${failedPaths.length} bronbestand(en) niet verwijderen. Controleer ze handmatig.`);
+    }
+
+    pendingSourceDeletionsRef.current = [];
+  }, [deleteSources, language]);
+
   const addFiles = useCallback((newFiles: { file: File, relativePath: string }[]) => {
     const filesToAdd: ConversionFile[] = newFiles
     .filter(item => isSupportedMedia(item.file))
@@ -654,13 +706,18 @@ const App: React.FC = () => {
 
   const handleConvertAll = async () => {
     if (isConverting) return;
-    if (deleteSources && outputDirectory && !window.confirm(t('delete_sources_warning', language))) return;
+    pendingSourceDeletionsRef.current = [];
     setIsConverting(true);
     setConvertedCount(0);
     setBatchEtaSeconds(null);
     setIsStalled(false);
     lastProgressAtRef.current = Date.now();
     batchStartedAtRef.current = Date.now();
+
+    const electronApi = (window as any).electronAPI;
+    const tempDirectory = (await electronApi?.getTempDirectory?.()) || '';
+    const batchDirectoryName = getBatchDirectoryName();
+    const batchTempDirectory = tempDirectory ? `${tempDirectory.replace(/[\\/]$/, '')}/fcp-batches/${batchDirectoryName}` : null;
   
     // Special handling for combining images into a single PDF
     const pdfImageFiles = files.filter(f => {
@@ -809,14 +866,29 @@ const App: React.FC = () => {
         }
 
         const url = URL.createObjectURL(convertedBlob);
-        if (outputDirectory && !vaultStatus.enabled && (window as any).electronAPI?.writeOutputFile) {
+        const convertedBuffer = await convertedBlob.arrayBuffer();
+
+        if (batchTempDirectory) {
+          const relativePath = fileItem.relativePath || file.name;
+          const sourceName = relativePath.replace(/\\/g, '/');
+          const dotIndex = sourceName.lastIndexOf('.');
+          const tempOutputName = `${dotIndex > -1 ? sourceName.slice(0, dotIndex) : sourceName}.${targetFormat?.toLowerCase()}`;
+          const tempOutputPath = `${batchTempDirectory.replace(/[\\/]$/, '')}/${tempOutputName}`;
+          await electronApi.writeOutputFile(tempOutputPath, convertedBuffer);
+        }
+
+        if (outputDirectory && !vaultStatus.enabled && electronApi?.writeOutputFile) {
           const relativePath = fileItem.relativePath || file.name;
           const sourceName = relativePath.replace(/\\/g, '/');
           const dotIndex = sourceName.lastIndexOf('.');
           const outputName = `${dotIndex > -1 ? sourceName.slice(0, dotIndex) : sourceName}.${targetFormat?.toLowerCase()}`;
           const outputPath = `${outputDirectory.replace(/[\\/]$/, '')}/${outputName}`;
-          await electronApi.writeOutputFile(outputPath, await convertedBlob.arrayBuffer());
-          if (deleteSources && sourcePath) await electronApi.deleteSourceFile(sourcePath);
+          await electronApi.writeOutputFile(outputPath, convertedBuffer);
+          if (sourcePath) {
+            pendingSourceDeletionsRef.current = pendingSourceDeletionsRef.current.includes(sourcePath)
+              ? pendingSourceDeletionsRef.current
+              : [...pendingSourceDeletionsRef.current, sourcePath];
+          }
         }
         updateFileState(id, { convertedFileUrl: url, status: 'success', progress: 100 });
         conversionTimings.push({ fileName: file.name, seconds: (performance.now() - conversionStartedAt) / 1000, status: 'success' });
@@ -840,6 +912,7 @@ const App: React.FC = () => {
     });
 
     await Promise.all(workers);
+
     const finishedAt = new Date();
     const totalSeconds = conversionTimings.reduce((sum, item) => sum + item.seconds, 0);
     const successfulTimings = conversionTimings.filter(item => item.status === 'success');
@@ -1020,7 +1093,6 @@ const App: React.FC = () => {
         setZipProgress({ completed: successfulConversions.length, total: successfulConversions.length, currentFile: 'ZIP afronden...' });
         const zipBlob = await zipWriter.close();
         zipWriter = null; 
-        if (!zipBlob || zipBlob.size === 0) throw new Error('The ZIP file is empty.');
         setZipProgress({ completed: successfulConversions.length, total: successfulConversions.length, currentFile: '' });
         
         if (destination === 'vault') {
@@ -1029,14 +1101,17 @@ const App: React.FC = () => {
           await saveDownload(zipBlob, `${zipFileName || 'converted-files'}.zip`);
         }
 
+        if (deleteSources && pendingSourceDeletionsRef.current.length > 0) {
+          await handlePendingSourceDeletion();
+        }
+
         if (password) {
             setShowEncryptionInfo(true);
         }
 
     } catch (err: any) {
-      const message = err?.message || String(err);
-      console.error("Error creating ZIP file", err);
-      alert(`An error occurred while creating the ZIP file: ${message}`);
+        console.error("Error creating ZIP file", err);
+        alert("An error occurred while creating the ZIP file. Check console for details.");
     } finally {
         if (zipWriter) {
              try { await zipWriter.close(); } catch(e: any) { /* ignore */ }
@@ -1224,7 +1299,7 @@ const App: React.FC = () => {
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
                     }
                 </button>
-                <button onClick={() => setCurrentView(currentView === 'home' ? 'settings' : 'home')} title="Settings" aria-label="Settings" className="p-2 rounded-full bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
+                <button onClick={() => setCurrentView(currentView === 'home' ? 'settings' : 'home')} title={t('settings', language)} aria-label={t('settings', language)} className="p-2 rounded-full bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-700 dark:text-gray-200" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37a1.724 1.724 0 002.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                 </button>
                 <select value={language} onChange={e => setLanguage(e.target.value)} className="bg-gray-200 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md py-2 pl-3 pr-8 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-cyan-500">
@@ -1235,7 +1310,7 @@ const App: React.FC = () => {
         
         {currentView === 'settings' ? (
           <div className="space-y-5">
-            <div className="flex items-center justify-between"><h2 className="text-2xl font-bold text-cyan-600 dark:text-cyan-400">Settings</h2><button onClick={() => setCurrentView('home')} className="rounded-md bg-gray-200 px-4 py-2 font-semibold dark:bg-gray-700">Back</button></div>
+            <div className="flex items-center justify-between"><h2 className="text-2xl font-bold text-cyan-600 dark:text-cyan-400">{t('settings', language)}</h2><button onClick={() => setCurrentView('home')} className="rounded-md bg-gray-200 px-4 py-2 font-semibold dark:bg-gray-700">{t('back', language)}</button></div>
             <div className="rounded-lg border border-gray-300 bg-gray-100 p-5 dark:border-gray-600 dark:bg-gray-700/50">
               <h3 className="text-lg font-semibold">{t('output_folder', language)}</h3>
               <p className="mt-1 break-all text-sm text-gray-600 dark:text-gray-300">{outputDirectory || t('output_folder_help', language)}</p>
@@ -1243,27 +1318,27 @@ const App: React.FC = () => {
                 <button onClick={chooseOutputDirectory} className="rounded-md bg-cyan-500 px-4 py-2 font-bold text-white hover:bg-cyan-600">{t('choose_output_folder', language)}</button>
                 {outputDirectory && <button onClick={clearOutputDirectory} className="rounded-md bg-gray-500 px-4 py-2 font-bold text-white hover:bg-gray-600">{t('clear_all', language)}</button>}
               </div>
-              {outputDirectory && <label className="mt-5 flex items-start gap-3 text-sm text-gray-700 dark:text-gray-200"><input type="checkbox" checked={vaultStatus.enabled} onChange={event => event.target.checked ? setIsVaultSetupModalOpen(true) : clearOutputDirectory()} className="mt-1 h-4 w-4 accent-cyan-500" /><span><span className="font-semibold">Doelpad instellen als kluis</span><span className="mt-1 block text-xs text-gray-600 dark:text-gray-300">Versleutelde bestanden worden alleen vanuit deze app opgeslagen.</span></span></label>}
-              {vaultStatus.enabled && <div className="mt-5 rounded-md border border-cyan-400/50 bg-cyan-50 p-4 dark:bg-cyan-950/30"><div className="flex flex-wrap items-center justify-between gap-3"><div><h4 className="font-semibold text-cyan-800 dark:text-cyan-200">Kluisbestanden</h4><p className="text-xs text-gray-600 dark:text-gray-300">Open, exporteer of verwijder bestanden vanuit de app.</p></div><button onClick={openVaultBrowser} className="rounded-md bg-cyan-600 px-4 py-2 font-bold text-white hover:bg-cyan-700">Kluis openen</button></div></div>}
-              {isVaultBrowserOpen && vaultPassword && <div className="mt-4 space-y-2 rounded-md border border-gray-300 bg-white/70 p-3 dark:border-gray-600 dark:bg-gray-900/30"><div className="flex items-center justify-between"><h4 className="font-semibold">Ontgrendelde kluis</h4><button onClick={() => { setIsVaultBrowserOpen(false); setVaultPassword(null); setVaultFiles([]); }} className="rounded bg-gray-500 px-3 py-1 text-sm font-bold text-white">Sluiten</button></div>{vaultFiles.length === 0 ? <p className="text-sm text-gray-600 dark:text-gray-300">De kluis is leeg.</p> : vaultFiles.map(file => <div key={file.storageName} className="flex flex-wrap items-center justify-between gap-2 rounded border border-gray-200 p-2 dark:border-gray-700"><div><div className="font-medium">{file.fileName}</div><div className="text-xs text-gray-500">{formatBytes(file.bytes)}</div></div><div className="flex gap-2"><button onClick={() => downloadVaultFile(file)} className="rounded bg-cyan-600 px-3 py-1 text-sm font-bold text-white">Exporteren</button><button onClick={() => deleteVaultFile(file)} className="rounded bg-red-600 px-3 py-1 text-sm font-bold text-white">Verwijderen</button></div></div>)}</div>}
+              {outputDirectory && <label className="mt-5 flex items-start gap-3 text-sm text-gray-700 dark:text-gray-200"><input type="checkbox" checked={vaultStatus.enabled} onChange={event => event.target.checked ? setIsVaultSetupModalOpen(true) : clearOutputDirectory()} className="mt-1 h-4 w-4 accent-cyan-500" /><span><span className="font-semibold">{t('set_output_folder_as_vault', language)}</span><span className="mt-1 block text-xs text-gray-600 dark:text-gray-300">{t('vault_only_from_app', language)}</span></span></label>}
+              {vaultStatus.enabled && <div className="mt-5 rounded-md border border-cyan-400/50 bg-cyan-50 p-4 dark:bg-cyan-950/30"><div className="flex flex-wrap items-center justify-between gap-3"><div><h4 className="font-semibold text-cyan-800 dark:text-cyan-200">{t('vault_files', language)}</h4><p className="text-xs text-gray-600 dark:text-gray-300">{t('vault_files_help', language)}</p></div><button onClick={openVaultBrowser} className="rounded-md bg-cyan-600 px-4 py-2 font-bold text-white hover:bg-cyan-700">{t('open_vault', language)}</button></div></div>}
+              {isVaultBrowserOpen && vaultPassword && <div className="mt-4 space-y-2 rounded-md border border-gray-300 bg-white/70 p-3 dark:border-gray-600 dark:bg-gray-900/30"><div className="flex items-center justify-between"><h4 className="font-semibold">{t('vault_unlocked', language)}</h4><button onClick={() => { setIsVaultBrowserOpen(false); setVaultPassword(null); setVaultFiles([]); }} className="rounded bg-gray-500 px-3 py-1 text-sm font-bold text-white">{t('close', language)}</button></div>{vaultFiles.length === 0 ? <p className="text-sm text-gray-600 dark:text-gray-300">{t('vault_empty', language)}</p> : vaultFiles.map(file => <div key={file.storageName} className="flex flex-wrap items-center justify-between gap-2 rounded border border-gray-200 p-2 dark:border-gray-700"><div><div className="font-medium">{file.fileName}</div><div className="text-xs text-gray-500">{formatBytes(file.bytes)}</div></div><div className="flex gap-2"><button onClick={() => downloadVaultFile(file)} className="rounded bg-cyan-600 px-3 py-1 text-sm font-bold text-white">{t('export', language)}</button><button onClick={() => deleteVaultFile(file)} className="rounded bg-red-600 px-3 py-1 text-sm font-bold text-white">{t('delete', language)}</button></div></div>)}</div>}
               <label className="mt-5 flex items-start gap-3 text-sm text-gray-700 dark:text-gray-200">
                 <input type="checkbox" checked={deleteSources} onChange={event => setDeleteSources(event.target.checked)} className="mt-1 h-4 w-4 accent-cyan-500" />
                 <span><span className="font-semibold">{t('delete_sources', language)}</span><span className="mt-1 block text-xs text-amber-700 dark:text-amber-300">{t('delete_sources_warning', language)}</span></span>
               </label>
             </div>
             <div className="rounded-lg border border-gray-300 bg-gray-100 p-5 dark:border-gray-600 dark:bg-gray-700/50">
-              <h3 className="text-lg font-semibold">Background</h3>
-              <p className="mt-1 break-all text-sm text-gray-600 dark:text-gray-300">{wallpaper.enabled ? wallpaper.path : 'Default wallpaper'}</p>
+              <h3 className="text-lg font-semibold">{t('background', language)}</h3>
+              <p className="mt-1 break-all text-sm text-gray-600 dark:text-gray-300">{wallpaper.enabled ? wallpaper.path : t('default_wallpaper', language)}</p>
               <p className="mt-3 rounded-md border border-amber-400/60 bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">{t('wallpaper_notice', language)}</p>
               <div className="mt-5 flex flex-wrap gap-3">
-                <button onClick={chooseWallpaper} className="rounded-md bg-cyan-500 px-4 py-2 font-bold text-white hover:bg-cyan-600">{wallpaper.enabled ? 'Change background' : 'Add background'}</button>
-                <button onClick={disableWallpaper} disabled={!wallpaper.enabled} className="rounded-md bg-gray-500 px-4 py-2 font-bold text-white disabled:opacity-50">Turn background off</button>
+                <button onClick={chooseWallpaper} className="rounded-md bg-cyan-500 px-4 py-2 font-bold text-white hover:bg-cyan-600">{wallpaper.enabled ? t('change_background', language) : t('add_background', language)}</button>
+                <button onClick={disableWallpaper} disabled={!wallpaper.enabled} className="rounded-md bg-gray-500 px-4 py-2 font-bold text-white disabled:opacity-50">{t('turn_background_off', language)}</button>
               </div>
               <div className="mt-6 rounded-md border border-gray-300 bg-white/60 p-4 dark:border-gray-600 dark:bg-gray-900/30">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <h4 className="text-base font-semibold text-gray-900 dark:text-white">UI transparency</h4>
-                    <p className="text-sm text-gray-600 dark:text-gray-300">Makes the conversion panel more transparent so the wallpaper stays visible.</p>
+                    <h4 className="text-base font-semibold text-gray-900 dark:text-white">{t('ui_transparency', language)}</h4>
+                    <p className="text-sm text-gray-600 dark:text-gray-300">{t('ui_transparency_help', language)}</p>
                   </div>
                   <span className="min-w-12 text-right text-sm font-semibold text-cyan-600 dark:text-cyan-400">{uiTransparency.toFixed(2)}</span>
                 </div>

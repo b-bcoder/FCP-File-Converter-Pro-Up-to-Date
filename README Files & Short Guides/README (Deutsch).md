@@ -25,6 +25,7 @@ File Converter Pro ist eine Windows-Desktopanwendung zum lokalen Konvertieren vo
 - Tresorinhalte mit AES-256-GCM und Argon2id schützen
 - Mehrsprachige Oberfläche und Anleitung beim ersten Start
 - Helles und dunkles Design
+- Einstellbarer Hintergrund
 - Randloser Vollbildmodus mit `F11`
 - Erkennung dedizierter GPUs und natives FFmpeg in Electron
 

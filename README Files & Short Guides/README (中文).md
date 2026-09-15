@@ -25,6 +25,7 @@ File Converter Pro 是一款 Windows 桌面应用，可在本地转换图像、�
 - 使用 AES-256-GCM 和 Argon2id 保护保险箱内容
 - 多语言界面和首次启动指南
 - 浅色和深色主题
+- 可调背景
 - 使用 `F11` 的无边框全屏模式
 - 专用 GPU 检测和 Electron 原生 FFmpeg
 
