@@ -18,7 +18,7 @@
     "@ffmpeg/core": "^0.12.10",
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@ffmpeg/util": "^0.12.2",
-    "@node-rs/argon2": "^2.2.0",
+    "@node-rs/argon2": "^2.2.1",
     "@zip.js/zip.js": "^2.8.60",
     "concurrently": "^10.0.5",
     "ffmpeg": "^1.1.3",
