@@ -89,6 +89,76 @@ if (!gpuInfo.hasDedicatedGpu) {
 
 Menu.setApplicationMenu(null);
 
+function createSplashWindow() {
+  const splash = new BrowserWindow({
+    width: 560,
+    height: 300,
+    frame: false,
+    resizable: false,
+    movable: false,
+    center: true,
+    show: false,
+    alwaysOnTop: true,
+    backgroundColor: '#0b1220',
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  });
+
+  const version = app.getVersion();
+  const splashHtml = `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <style>
+      * { box-sizing: border-box; }
+      html, body { height: 100%; margin: 0; }
+      body {
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+        background: #0b1220;
+        color: #f8fafc;
+        font-family: "Segoe UI", sans-serif;
+        animation: splash-in 3500ms ease-out both;
+      }
+      main { text-align: center; }
+      .mark {
+        width: 64px;
+        height: 64px;
+        margin: 0 auto 22px;
+        border: 2px solid #22d3ee;
+        border-radius: 16px;
+        display: grid;
+        place-items: center;
+        color: #22d3ee;
+        font-size: 21px;
+        font-weight: 700;
+        letter-spacing: 1px;
+        box-shadow: 0 0 30px rgba(34, 211, 238, 0.2);
+      }
+      h1 { margin: 0; font-size: 26px; font-weight: 600; letter-spacing: 0.2px; }
+      p { margin: 12px 0 0; color: #94a3b8; font-size: 14px; }
+      .fade-out { animation: splash-out 3500ms ease-in forwards; }
+      @keyframes splash-in { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
+      @keyframes splash-out { from { opacity: 1; } to { opacity: 0; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="mark">FCP</div>
+      <h1>FCP - File Converter Pro</h1>
+      <p>Author: B&amp;B Coder | v${version}</p>
+    </main>
+  </body>
+</html>`;
+
+  splash.show();
+  splash.loadURL(`data:text/html;charset=UTF-8,${encodeURIComponent(splashHtml)}`).catch(() => undefined);
+  return splash;
+}
+
 function createWindow() {
   const window = new BrowserWindow({
     width: 1280,
@@ -98,6 +168,8 @@ function createWindow() {
     icon: iconPath,
     autoHideMenuBar: true,
     fullscreen: true,
+    show: false,
+    opacity: 0,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -116,6 +188,46 @@ function createWindow() {
   } else {
     window.loadFile(path.join(__dirname, 'dist', 'index.html'));
   }
+
+  let hasRevealed = false;
+  const revealWindow = () => {
+    if (hasRevealed) return;
+    hasRevealed = true;
+    const splash = window.splashWindow;
+    const showMainWindow = () => {
+      if (window.isDestroyed()) return;
+      window.setOpacity(0);
+      window.show();
+      window.focus();
+
+      const fadeStart = Date.now();
+      const fadeDuration = 1500;
+      const fadeIn = () => {
+        if (window.isDestroyed()) return;
+        const progress = Math.min(1, (Date.now() - fadeStart) / fadeDuration);
+        window.setOpacity(progress);
+        if (progress < 1) setTimeout(fadeIn, 16);
+      };
+      fadeIn();
+    };
+
+    if (!splash || splash.isDestroyed()) {
+      showMainWindow();
+      return;
+    }
+
+    splash.webContents.executeJavaScript("document.body.classList.add('fade-out')").catch(() => undefined);
+    setTimeout(() => {
+      if (!splash.isDestroyed()) splash.close();
+      showMainWindow();
+    }, 2500);
+  };
+
+  window.webContents.once('did-finish-load', revealWindow);
+  window.once('ready-to-show', revealWindow);
+  setTimeout(revealWindow, 15000);
+
+  return window;
 }
 
 const wallpaperConfigPath = path.join(app.getPath('userData'), 'config.json');
@@ -605,7 +717,9 @@ function loadDevelopmentPage(window, attempt = 0) {
 
 app.whenReady().then(async () => {
   await fs.rm(path.join(app.getPath('temp'), 'fcp-staging'), { recursive: true, force: true });
-  createWindow();
+  const splash = createSplashWindow();
+  const window = createWindow();
+  window.splashWindow = splash;
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

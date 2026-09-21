@@ -12,6 +12,10 @@ File Converter Proは、画像、動画、音声およびPDFファイルを高�
 - 画像を JPG、PNG、WEBP、HEIC、AVIF、PDF、ICO、SVG に変換
 - 動画を MP4、WEBM、WMV、MKV に変換
 - 音声を MP3、WAV、FLAC、OGG に変換
+- 3D モデルを STL、OBJ、FBX、GLTF、GLB の間で変換
+- SketchUp SKP ファイルを読み込み、GLB、OBJ、STL に変換
+- 3D メッシュ、頂点、面、法線、接線、マテリアル、UV データを処理
+- 3D ジオメトリを三角形化し、mm から m、m から mm などの単位スケーリングを適用
 - Whisper を使用して音声をローカルで TXT または SRT に文字起こし
 - PDF ファイルからテキストを抽出
 - 複数の画像を 1 つの PDF に結合
@@ -60,6 +64,16 @@ FCP は、変換と文字起こしをローカルマシンで直接実行する�
 
 完全な `.exe` インストーラーを使用してください。`.blockmap` ファイルと `.__uninstaller.exe` ファイルはインストーラーではありません。
 インストール後、Windows はデスクトップにショートカットを作成します。アプリはデフォルトでボーダーレス全画面モードで自動的に起動します。インストールされたファイルは `%LOCALAPPDATA%\Programs\bestandsconverter` に保存されます。
+
+### Windows のファイル保存場所
+
+インストール後、FCP は次のローカル場所を使用します。
+
+- 更新ファイル: `%LOCALAPPDATA%\bestandsconverter-updater`
+- インストールされたアプリケーションファイル: `%LOCALAPPDATA%\Programs\bestandsconverter`
+- 設定とユーザーデータ: `%APPDATA%\bestandsconverter`
+
+お使いのコンピューターでは、これらの変数は例えば `C:\Users\<ユーザー名>\AppData\Local\bestandsconverter-updater`、`C:\Users\<ユーザー名>\AppData\Local\Programs\bestandsconverter`、`C:\Users\<ユーザー名>\AppData\Roaming\bestandsconverter` に展開されます。これらは選択した出力フォルダーおよび一時変換フォルダーとは別の場所です。
 
 ## 使い方
 
@@ -134,6 +148,8 @@ npm run dist
 - Electron: デスクトップランタイム
 - electron-builder: Windows インストーラー
 - FFmpeg と `ffmpeg-static`: 動画・音声変換
+- Three.js: STL、OBJ、FBX、GLTF、GLB の 3D ローダーとエクスポーター
+- OpenSKP: SKP の解析と GLB、OBJ、STL へのエクスポート
 - PDF.js と jsPDF: PDF の読み込みと作成
 - zip.js: ZIP と AES-256 暗号化
 - AES-256-GCM: 保管庫内容の暗号化
@@ -141,6 +157,25 @@ npm run dist
 - Node.js crypto API: 安全なファイル処理と保管庫処理
 - Tailwind CSS、PostCSS、Autoprefixer: スタイリング
 - `concurrently`: Vite と Electron の同時起動
+
+### 3D 変換エンジン
+
+FCP は Three.js を 3D 変換エンジンの中核として使用します。形式別の
+ローダーとエクスポーターにより、STL、OBJ、FBX、GLTF、GLB を処理できます。
+変換時には 3D メッシュ、頂点、面、法線、接線、マテリアル、UV データを
+処理し、三角形化と単位スケーリングを適用できます。
+
+SketchUp ファイル（`.skp`）には OpenSKP パーサーを使用します。OpenSKP は
+SketchUp シーンを読み込み、GLB、OBJ、STL にエクスポートします。SKP は
+現在入力形式としてのみ対応しており、FCP は新しい SKP ファイルを作成しません。
+
+### ローカル処理とセキュリティ
+
+変換と文字起こしは Electron アプリ内でローカルに実行されます。Renderer
+は Node.js に直接アクセスせず、分離された preload ブリッジを使用します。
+ソースファイルがクラウドサービスへアップロードされることはありません。
+ZIP は AES-256 で保護でき、保管庫の内容は Argon2id による鍵導出と
+AES-256-GCM で保護されます。FCP は保管庫のパスワードを保存しません。
 
 ## 技術とプライバシー
 

@@ -6,6 +6,24 @@ This project uses the structure of [Keep a Changelog](https://keepachangelog.com
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-09-21
+
+### Added
+
+- A dedicated 3D Model Conversion mode.
+- STL, OBJ, FBX, GLTF and GLB conversion with mesh, materials, UV, normals, tangents, triangulation and unit-scale handling.
+- SKP import with conversion to GLB, OBJ and STL.
+
+## [1.0.7-patch3] - 2026-09-17
+
+### Added
+
+- Fade-in splashscreen showing the application name, author and current version during startup
+
+### Changed
+
+- The main application window now appears only after the initial page has loaded, followed by a smooth splashscreen fade-out
+
 ## [1.0.7-patch2] - 2026-09-15
 
 ### Changed

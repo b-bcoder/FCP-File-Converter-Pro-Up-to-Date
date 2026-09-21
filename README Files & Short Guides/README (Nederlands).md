@@ -1,6 +1,6 @@
 # File Converter Pro (FCP)
 
-File Converter Pro is een Windows-desktopapp waarmee je afbeeldingen, video, audio en PDF-bestanden lokaal converteert. Bestanden worden niet geüpload naar een online dienst.
+File Converter Pro is een Windows-desktopapp waarmee je afbeeldingen, video, audio, PDF-bestanden en 3D-modellen lokaal converteert. Bestanden worden niet geüpload naar een online dienst.
 
 ## Maker
 
@@ -12,6 +12,10 @@ File Converter Pro is een Windows-desktopapp waarmee je afbeeldingen, video, aud
 - Afbeeldingen converteren naar JPG, PNG, WEBP, HEIC, AVIF, PDF, ICO en SVG
 - Video converteren naar MP4, WEBM, WMV en MKV
 - Audio converteren naar MP3, WAV, FLAC en OGG
+- 3D-modellen converteren tussen STL, OBJ, FBX, GLTF en GLB
+- SketchUp-SKP-bestanden importeren en converteren naar GLB, OBJ of STL
+- 3D-meshes, vertices, faces, normals, tangents, materialen en UV-data verwerken
+- 3D-geometrie trianguleren en unitschaling toepassen, zoals mm naar m en m naar mm
 - Audio lokaal transcriberen naar TXT of SRT met Whisper
 - PDF-bestanden naar tekst converteren
 - Meerdere afbeeldingen combineren tot één PDF
@@ -60,6 +64,16 @@ FCP is een lokale desktopapp die conversies en transcripten direct op je compute
 
 Gebruik de volledige `.exe`. Een `.blockmap` en `.__uninstaller.exe` zijn geen installatiebestanden.
 Na de installatie maakt Windows een snelkoppeling op het bureaublad aan. De app start standaard automatisch in borderless fullscreen. De geïnstalleerde bestanden staan lokaal in `%LOCALAPPDATA%\Programs\bestandsconverter`.
+
+### Windows-bestandslocaties
+
+FCP gebruikt na installatie de volgende locaties:
+
+- Updatebestanden: `%LOCALAPPDATA%\bestandsconverter-updater`
+- Geïnstalleerde programmabestanden: `%LOCALAPPDATA%\Programs\bestandsconverter`
+- Instellingen en gebruikersgegevens: `%APPDATA%\bestandsconverter`
+
+Op jouw computer worden deze omgevingsvariabelen bijvoorbeeld uitgevouwen naar `C:\Users\<gebruikersnaam>\AppData\Local\bestandsconverter-updater`, `C:\Users\<gebruikersnaam>\AppData\Local\Programs\bestandsconverter` en `C:\Users\<gebruikersnaam>\AppData\Roaming\bestandsconverter`. Dit staat los van de uitvoermap en de tijdelijke conversiemappen.
 
 ## Gebruiken
 
@@ -138,6 +152,8 @@ De installer wordt gemaakt in `release/File Converter Pro Setup <versie>.exe`.
 - Electron: desktopruntime
 - electron-builder: Windows-installer
 - FFmpeg en `ffmpeg-static`: video- en audioconversie
+- Three.js: 3D-loaders en exporters voor STL, OBJ, FBX, GLTF en GLB
+- OpenSKP: SKP-parser en export naar GLB, OBJ en STL
 - PDF.js en jsPDF: PDF lezen en maken
 - zip.js: ZIP en AES-256
 - AES-256-GCM: versleuteling van kluisinhoud
@@ -145,6 +161,25 @@ De installer wordt gemaakt in `release/File Converter Pro Setup <versie>.exe`.
 - Node.js crypto APIs: veilige verwerking van bestanden en kluisdata
 - Tailwind CSS, PostCSS en Autoprefixer: styling
 - `concurrently`: Vite en Electron tegelijk starten
+
+### 3D-conversie-engine
+
+FCP gebruikt Three.js als kern van de 3D-conversie-engine. De formaatspecifieke
+loaders en exporters verwerken STL, OBJ, FBX, GLTF en GLB. Tijdens conversie
+kunnen mesh-geometrie, vertices, faces, normals, tangents, materialen en UV-data
+worden verwerkt, inclusief triangulatie en unitschaling.
+
+SketchUp-bestanden (`.skp`) gebruiken de OpenSKP-parser. OpenSKP leest de
+SketchUp-scene en exporteert naar GLB, OBJ of STL. SKP wordt momenteel alleen
+als invoer ondersteund; FCP schrijft geen nieuwe SKP-bestanden.
+
+### Lokale verwerking en beveiliging
+
+Conversie en transcriptie draaien lokaal in de Electron-applicatie. De renderer
+gebruikt een geisoleerde preload-bridge in plaats van directe Node.js-toegang.
+Bronbestanden worden niet naar een cloudservice geupload. ZIP-bestanden kunnen
+met AES-256 worden beveiligd; kluisinhoud gebruikt AES-256-GCM met Argon2id.
+Het kluiswachtwoord wordt niet door FCP opgeslagen.
 
 ## Techniek en privacy
 

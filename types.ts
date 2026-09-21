@@ -21,6 +21,12 @@ export enum ConversionTarget {
   // Document formats
   TXT = 'TXT',
   SRT = 'SRT',
+  // 3D model formats
+  STL = 'STL',
+  OBJ = 'OBJ',
+  FBX = 'FBX',
+  GLTF = 'GLTF',
+  GLB = 'GLB',
 }
 
 export type FileStatus = 'pending' | 'reading' | 'converting' | 'success' | 'error';

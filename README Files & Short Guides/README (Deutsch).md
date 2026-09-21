@@ -12,6 +12,10 @@ File Converter Pro ist eine Windows-Desktop-Anwendung für die schnelle, lokale 
 - Bilder in JPG, PNG, WEBP, HEIC, AVIF, PDF, ICO und SVG konvertieren
 - Videos in MP4, WEBM, WMV und MKV konvertieren
 - Audio in MP3, WAV, FLAC und OGG konvertieren
+- 3D-Modelle zwischen STL, OBJ, FBX, GLTF und GLB konvertieren
+- SketchUp-SKP-Dateien importieren und in GLB, OBJ oder STL konvertieren
+- 3D-Meshes, Vertices, Faces, Normalen, Tangenten, Materialien und UV-Daten verarbeiten
+- 3D-Geometrie triangulieren und Einheitenskalierung wie mm zu m oder m zu mm anwenden
 - Audio lokal mit Whisper in TXT oder SRT transkribieren
 - Text aus PDF-Dateien extrahieren
 - Mehrere Bilder zu einer PDF-Datei zusammenfassen
@@ -60,6 +64,16 @@ FCP ist eine lokale Desktop-App, die Konvertierungen und Transkriptionen direkt 
 
 Verwenden Sie die vollständige `.exe`-Installationsdatei. Eine `.blockmap`-Datei und eine `.__uninstaller.exe`-Datei sind keine Installer.
 Nach der Installation erstellt Windows eine Desktopverknüpfung. Die App startet standardmäßig automatisch im randlosen Vollbildmodus. Die installierten Dateien befinden sich lokal unter `%LOCALAPPDATA%\Programs\bestandsconverter`.
+
+### Windows-Speicherorte
+
+Nach der Installation verwendet FCP diese lokalen Speicherorte:
+
+- Update-Dateien: `%LOCALAPPDATA%\bestandsconverter-updater`
+- Installierte Programmdateien: `%LOCALAPPDATA%\Programs\bestandsconverter`
+- Einstellungen und Benutzerdaten: `%APPDATA%\bestandsconverter`
+
+Auf Ihrem Computer werden diese Variablen beispielsweise zu `C:\Users\<Benutzername>\AppData\Local\bestandsconverter-updater`, `C:\Users\<Benutzername>\AppData\Local\Programs\bestandsconverter` und `C:\Users\<Benutzername>\AppData\Roaming\bestandsconverter` erweitert. Diese Speicherorte sind getrennt vom Ausgabeordner und den temporären Konvertierungsordnern.
 
 ## Verwendung
 
@@ -138,6 +152,8 @@ Der Installer wird unter `release/File Converter Pro Setup <Version>.exe` erstel
 - Electron: Desktop-Laufzeit
 - electron-builder: Windows-Installer
 - FFmpeg und `ffmpeg-static`: Video- und Audiokonvertierung
+- Three.js: 3D-Loader und -Exporter für STL, OBJ, FBX, GLTF und GLB
+- OpenSKP: SKP-Parser und Export nach GLB, OBJ und STL
 - PDF.js und jsPDF: PDF lesen und erstellen
 - zip.js: ZIP-Dateien und AES-256-Verschlüsselung
 - AES-256-GCM: Verschlüsselung der Tresorinhalte
@@ -145,6 +161,25 @@ Der Installer wird unter `release/File Converter Pro Setup <Version>.exe` erstel
 - Node.js-crypto-APIs: sichere Dateiverarbeitung und Tresorfunktionen
 - Tailwind CSS, PostCSS und Autoprefixer: Styling
 - `concurrently`: Vite und Electron gemeinsam starten
+
+### 3D-Konvertierungs-Engine
+
+FCP verwendet Three.js als Kern der 3D-Konvertierungs-Engine. Die Loader und
+Exporter verarbeiten STL, OBJ, FBX, GLTF und GLB. Dabei können Mesh-Geometrie,
+Vertices, Faces, Normalen, Tangenten, Materialien und UV-Daten verarbeitet,
+trianguliert und skaliert werden.
+
+SketchUp-Dateien (`.skp`) werden mit dem OpenSKP-Parser gelesen. OpenSKP liest
+die SketchUp-Szene und exportiert sie nach GLB, OBJ oder STL. SKP wird derzeit
+nur als Eingabeformat unterstützt; FCP erstellt keine neuen SKP-Dateien.
+
+### Lokale Verarbeitung und Sicherheit
+
+Konvertierung und Transkription laufen lokal in der Electron-Anwendung. Der
+Renderer verwendet eine isolierte Preload-Bridge statt direkten Node.js-Zugriffs.
+Quelldateien werden nicht zu einem Cloud-Dienst hochgeladen. ZIP-Dateien können
+mit AES-256 geschützt werden; Tresorinhalte verwenden AES-256-GCM mit Argon2id.
+Das Tresorpasswort wird von FCP nicht gespeichert.
 
 ## Technik und Datenschutz
 

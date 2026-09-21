@@ -12,6 +12,10 @@ File Converter Pro, görüntüleri, videoları, ses dosyalarını ve PDF dosyala
 - Görüntüleri JPG, PNG, WEBP, HEIC, AVIF, PDF, ICO ve SVG formatlarına dönüştürme
 - Videoları MP4, WEBM, WMV ve MKV formatlarına dönüştürme
 - Ses dosyalarını MP3, WAV, FLAC ve OGG formatlarına dönüştürme
+- 3D modelleri STL, OBJ, FBX, GLTF ve GLB arasında dönüştürme
+- SketchUp SKP dosyalarını içe aktarma ve GLB, OBJ veya STL formatına dönüştürme
+- 3D mesh, vertex, face, normal, tangent, materyal ve UV verilerini işleme
+- 3D geometrisini üçgenlere ayırma ve mm-m ile m-mm dahil birim ölçekleme uygulama
 - Ses dosyalarını Whisper ile yerel olarak TXT veya SRT formatına dönüştürme
 - PDF dosyalarından metin çıkarma
 - Birden fazla görüntüyü tek PDF dosyasında birleştirme
@@ -60,6 +64,16 @@ FCP, dönüştürme ve transkripsiyon işlemlerini doğrudan bilgisayarınızda 
 
 Tam `.exe` yükleyicisini kullanın. `.blockmap` ve `.__uninstaller.exe` dosyaları yükleyici değildir.
 Kurulumdan sonra Windows masaüstünde bir kısayol oluşturur. Uygulama varsayılan olarak kenarlıksız tam ekran modunda otomatik olarak başlar. Yüklü dosyalar yerel olarak `%LOCALAPPDATA%\Programs\bestandsconverter` konumunda bulunur.
+
+### Windows dosya konumları
+
+Kurulumdan sonra FCP şu yerel konumları kullanır:
+
+- Güncelleme dosyaları: `%LOCALAPPDATA%\bestandsconverter-updater`
+- Yüklü uygulama dosyaları: `%LOCALAPPDATA%\Programs\bestandsconverter`
+- Ayarlar ve kullanıcı verileri: `%APPDATA%\bestandsconverter`
+
+Bilgisayarınızda bu değişkenler örneğin `C:\Users\<kullanıcı-adı>\AppData\Local\bestandsconverter-updater`, `C:\Users\<kullanıcı-adı>\AppData\Local\Programs\bestandsconverter` ve `C:\Users\<kullanıcı-adı>\AppData\Roaming\bestandsconverter` olarak açılır. Bu konumlar seçilen çıktı klasöründen ve geçici dönüştürme klasörlerinden ayrıdır.
 
 ## Kullanım
 
@@ -134,6 +148,8 @@ Yükleyici `release/File Converter Pro Setup <sürüm>.exe` konumunda oluşturul
 - Electron: masaüstü çalışma ortamı
 - electron-builder: Windows yükleyicisi
 - FFmpeg ve `ffmpeg-static`: video ve ses dönüştürme
+- Three.js: STL, OBJ, FBX, GLTF ve GLB için 3D yükleyiciler ve dışa aktarıcılar
+- OpenSKP: SKP ayrıştırma ve GLB, OBJ, STL dışa aktarımı
 - PDF.js ve jsPDF: PDF okuma ve oluşturma
 - zip.js: ZIP ve AES-256 şifreleme
 - AES-256-GCM: kasa içeriği şifreleme
@@ -141,6 +157,25 @@ Yükleyici `release/File Converter Pro Setup <sürüm>.exe` konumunda oluşturul
 - Node.js crypto API'leri: güvenli dosya ve kasa işleme
 - Tailwind CSS, PostCSS ve Autoprefixer: stil
 - `concurrently`: Vite ve Electron'u birlikte başlatma
+
+### 3D dönüştürme motoru
+
+FCP, 3D dönüştürme motorunun temeli olarak Three.js kullanır. Biçime özel
+yükleyiciler ve dışa aktarıcılar STL, OBJ, FBX, GLTF ve GLB dosyalarını işler.
+Dönüştürme sırasında mesh geometrisi, vertex, face, normal, tangent, materyal
+ve UV verileri işlenebilir; üçgenleme ve birim ölçekleme uygulanabilir.
+
+SketchUp dosyaları (`.skp`) OpenSKP ayrıştırıcısını kullanır. OpenSKP SketchUp
+sahnesini okur ve GLB, OBJ veya STL olarak dışa aktarır. SKP şu anda yalnızca
+girdi formatı olarak desteklenir; FCP yeni SKP dosyaları oluşturmaz.
+
+### Yerel işleme ve güvenlik
+
+Dönüştürme ve transkripsiyon Electron uygulamasında yerel olarak çalışır.
+Renderer, doğrudan Node.js erişimi yerine yalıtılmış bir preload köprüsü kullanır.
+Kaynak dosyalar bulut hizmetine yüklenmez. ZIP dosyaları AES-256 ile, kasa
+içeriği ise Argon2id ile anahtarı türetilen AES-256-GCM ile korunabilir.
+FCP kasa parolasını saklamaz.
 
 ## Teknoloji ve gizlilik
 

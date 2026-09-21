@@ -1,6 +1,6 @@
 # File Converter Pro (FCP)
 
-File Converter Pro is a Windows desktop application for fast, local conversion of images, videos, audio and PDF files. Conversion and transcription run locally and do not upload your files to an online service. Internet access is only used for the optional GitHub update check.
+File Converter Pro is a Windows desktop application for fast, local conversion of images, videos, audio, PDF files and 3D models. Conversion and transcription run locally and do not upload your files to an online service. Internet access is only used for the optional GitHub update check.
 
 ## Overview
 
@@ -13,6 +13,10 @@ It is built with Electron, React, Vite and FFmpeg, allowing it to handle a wide 
 - Convert images to JPG, PNG, WEBP, HEIC, AVIF, PDF, ICO and SVG
 - Convert videos to MP4, WEBM, WMV and MKV
 - Convert audio to MP3, WAV, FLAC and OGG
+- Convert 3D models between STL, OBJ, FBX, GLTF and GLB
+- Import SketchUp SKP files and convert them to GLB, OBJ or STL
+- Process 3D meshes, vertices, faces, normals, tangents, materials and UV data
+- Triangulate 3D geometry and apply unit scaling, including mm-to-m and m-to-mm conversion
 - Transcribe audio locally to TXT or SRT with the bundled Whisper engine
 - Extract text from PDF files
 - Merge multiple images into a single PDF
@@ -42,6 +46,8 @@ It is built with Electron, React, Vite and FFmpeg, allowing it to handle a wide 
 - Vite
 - TypeScript
 - FFmpeg
+- Three.js 3D loaders and exporters
+- OpenSKP for SketchUp SKP parsing and export
 - Sharp
 - PDF.js
 - jsPDF
@@ -49,6 +55,25 @@ It is built with Electron, React, Vite and FFmpeg, allowing it to handle a wide 
 - AES-256-GCM
 - Argon2id
 - Node.js crypto APIs
+
+### 3D conversion engine
+
+FCP uses Three.js as the core 3D conversion engine. Its format-specific loaders
+and exporters handle STL, OBJ, FBX, GLTF and GLB files. During conversion, FCP
+can process mesh geometry, vertices, faces, normals, tangents, materials and UV
+data, triangulate geometry and apply unit scaling.
+
+SketchUp `.skp` files use the OpenSKP parser. OpenSKP reads the SketchUp scene
+and exports it to GLB, OBJ or STL. SKP is currently supported as an input
+format; FCP does not write new SKP files.
+
+### Local processing and security
+
+Conversion and transcription run locally in the Electron application. The
+renderer uses an isolated preload bridge instead of direct Node.js access.
+Normal conversion does not upload source files to a cloud service. ZIP files
+can be protected with AES-256 encryption, while vault contents use AES-256-GCM
+with Argon2id-based key derivation. The vault password is not stored by FCP.
 
 ## System requirements
 
@@ -100,11 +125,29 @@ The generated installer is written to the `release/` folder. It includes Whisper
 
 ### Download the Windows app
 
-End users do not need Node.js or the project source code. Download the latest Windows installer from the [FCP GitHub Releases](https://github.com/b-bcoder/FCP-File-Converter-Pro-Up-to-Date/releases) page and run the `.exe` installer.
+End users do not need Node.js or the project source code. Download the latest Windows installer from the [FCP GitHub Releases]([https://github.com/uihorsewolf-design/FCP-File-Converter-Pro-Up-to-Date/releases](https://github.com/b-bcoder/FCP-File-Converter-Pro-Up-to-Date/releases) page and run the `.exe` installer.
 
 ### Build from source
 
 Developers can easily install the dependencies and create a new Windows installer locally using `npm run dist`. The installer comes with Whisper's runtime files and the base English model. The development build uses native FFmpeg through ffmpeg-static, so there’s no need for any external dependencies.
+
+### Windows file locations
+
+After installation, FCP uses these local Windows locations:
+
+- Update files and downloaded update data: `%LOCALAPPDATA%\bestandsconverter-updater`
+- Installed application files: `%LOCALAPPDATA%\Programs\bestandsconverter`
+- Application settings and user data: `%APPDATA%\bestandsconverter`
+
+For a Windows account named `username`, these paths expand to:
+
+```text
+C:\Users\username\AppData\Local\bestandsconverter-updater
+C:\Users\username\AppData\Local\Programs\bestandsconverter
+C:\Users\username\AppData\Roaming\bestandsconverter
+```
+
+These locations are separate from the output folder selected in FCP Settings and from the temporary conversion folders under `%LOCALAPPDATA%\Temp`.
 
 ## Usage
 

@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef, memo } from 'react';
 import { ConversionTarget, FileStatus, ConversionFile } from './types';
 import { convertAudioToText, convertImage, convertMedia, convertPdfToText } from './services/fileConverter';
+import { convertModel, getModelFormat, is3DModel, ModelFormat } from './services/modelConverter';
 import { t } from './i18n';
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import coreURL from '@ffmpeg/core?url';
@@ -30,11 +31,12 @@ const getMediaType = (file: File) => {
     const isVideo = type.startsWith('video/') || /\.(mp4|webm|wmv|mkv|avi|mov|flv|gif)$/.test(name);
     const isAudio = type.startsWith('audio/') || /\.(mp3|wav|flac|ogg|m4a|aac)$/.test(name);
     const isPdf = type === 'application/pdf' || /\.pdf$/i.test(name);
+    const isModel = is3DModel(file);
     
     // Images that can be handled by the browser's Canvas/HEIF engine
     const isImage = (type.startsWith('image/') || /\.(jpg|jpeg|png|webp|heic|heif|avif|ico|bmp|tiff|svg)$/.test(name)) && !isVideo;
     
-    return { isImage, isVideo, isAudio, isPdf, isSupported: isImage || isVideo || isAudio || isPdf };
+    return { isImage, isVideo, isAudio, isPdf, isModel, isSupported: isImage || isVideo || isAudio || isPdf || isModel };
 };
 
 // Helper to check if a file is supported
@@ -322,6 +324,8 @@ const App: React.FC = () => {
     return Math.min(1, Math.max(0.55, savedValue));
   });
   const [currentView, setCurrentView] = useState<'home' | 'settings'>('home');
+  const [conversionMode, setConversionMode] = useState<'media' | 'model'>('media');
+  const [modelUnitScale, setModelUnitScale] = useState(1);
   const [outputDirectory, setOutputDirectory] = useState(() => localStorage.getItem('output-directory') || '');
   const [vaultStatus, setVaultStatus] = useState<{ enabled: boolean; outputDirectory?: string; quotaBytes?: number }>({ enabled: false });
   const [vaultFiles, setVaultFiles] = useState<Array<{ storageName: string; fileName: string; bytes: number; modifiedAt: number }>>([]);
@@ -647,13 +651,22 @@ const App: React.FC = () => {
     .filter(item => isSupportedMedia(item.file))
     .map(item => {
       const { file, relativePath } = item;
-      const { isImage, isVideo, isAudio, isPdf } = getMediaType(file);
+      const { isImage, isVideo, isAudio, isPdf, isModel } = getMediaType(file);
       
       let defaultFormat: ConversionTarget | null = null;
       if (isVideo) defaultFormat = ConversionTarget.MP4;
       else if (isImage) defaultFormat = ConversionTarget.PNG;
       else if (isAudio) defaultFormat = ConversionTarget.MP3;
       else if (isPdf) defaultFormat = ConversionTarget.TXT;
+      else if (isModel) {
+        const sourceFormat = getModelFormat(file.name);
+        defaultFormat = sourceFormat === 'STL' ? ConversionTarget.OBJ
+          : sourceFormat === 'OBJ' ? ConversionTarget.GLB
+          : sourceFormat === 'FBX' ? ConversionTarget.GLTF
+          : sourceFormat === 'GLTF' ? ConversionTarget.GLB
+          : sourceFormat === 'SKP' ? ConversionTarget.GLB
+          : ConversionTarget.GLTF;
+      }
 
       return {
         id: crypto.randomUUID(),
@@ -715,9 +728,6 @@ const App: React.FC = () => {
     batchStartedAtRef.current = Date.now();
 
     const electronApi = (window as any).electronAPI;
-    const tempDirectory = (await electronApi?.getTempDirectory?.()) || '';
-    const batchDirectoryName = getBatchDirectoryName();
-    const batchTempDirectory = tempDirectory ? `${tempDirectory.replace(/[\\/]$/, '')}/fcp-batches/${batchDirectoryName}` : null;
   
     // Special handling for combining images into a single PDF
     const pdfImageFiles = files.filter(f => {
@@ -803,7 +813,7 @@ const App: React.FC = () => {
       updateFileState(fileItem.id, { status: 'reading', readProgress: 0, progress: 0, error: null });
 
       const { id, file, targetFormat } = fileItem;
-      const { isImage, isVideo, isAudio, isPdf } = getMediaType(file);
+      const { isImage, isVideo, isAudio, isPdf, isModel } = getMediaType(file);
       const electronApi = (window as any).electronAPI;
       const sourcePath = electronApi?.getFilePath?.(file);
       let stagedPath: string | undefined;
@@ -824,7 +834,11 @@ const App: React.FC = () => {
         const isHeifOrAvifSource = /\.(heic|heif|avif)$/i.test(file.name);
         const needsNativeImageConversion = targetFormat === ConversionTarget.HEIC || targetFormat === ConversionTarget.AVIF || isHeifOrAvifSource;
 
-        if (isImage && needsNativeImageConversion && [ConversionTarget.JPG, ConversionTarget.PNG, ConversionTarget.WEBP, ConversionTarget.HEIC, ConversionTarget.AVIF].includes(targetFormat as any)) {
+        if (isModel && [ConversionTarget.STL, ConversionTarget.OBJ, ConversionTarget.FBX, ConversionTarget.GLTF, ConversionTarget.GLB].includes(targetFormat as any)) {
+          const modelTarget = targetFormat as ModelFormat;
+          convertedBlob = await convertModel(conversionFile, modelTarget, p => updateFileState(id, { progress: p }), modelUnitScale);
+          updateFileState(id, { status: 'converting' });
+        } else if (isImage && needsNativeImageConversion && [ConversionTarget.JPG, ConversionTarget.PNG, ConversionTarget.WEBP, ConversionTarget.HEIC, ConversionTarget.AVIF].includes(targetFormat as any)) {
           convertedBlob = await convertMedia(ffmpegRef.current, file, targetFormat as any,
             (p, etaSeconds) => updateFileState(id, { progress: p, etaSeconds }),
             p => updateFileState(id, { readProgress: p })
@@ -866,31 +880,12 @@ const App: React.FC = () => {
         }
 
         const url = URL.createObjectURL(convertedBlob);
-        const convertedBuffer = await convertedBlob.arrayBuffer();
-
-        if (batchTempDirectory) {
-          const relativePath = fileItem.relativePath || file.name;
-          const sourceName = relativePath.replace(/\\/g, '/');
-          const dotIndex = sourceName.lastIndexOf('.');
-          const tempOutputName = `${dotIndex > -1 ? sourceName.slice(0, dotIndex) : sourceName}.${targetFormat?.toLowerCase()}`;
-          const tempOutputPath = `${batchTempDirectory.replace(/[\\/]$/, '')}/${tempOutputName}`;
-          await electronApi.writeOutputFile(tempOutputPath, convertedBuffer);
-        }
-
-        if (outputDirectory && !vaultStatus.enabled && electronApi?.writeOutputFile) {
-          const relativePath = fileItem.relativePath || file.name;
-          const sourceName = relativePath.replace(/\\/g, '/');
-          const dotIndex = sourceName.lastIndexOf('.');
-          const outputName = `${dotIndex > -1 ? sourceName.slice(0, dotIndex) : sourceName}.${targetFormat?.toLowerCase()}`;
-          const outputPath = `${outputDirectory.replace(/[\\/]$/, '')}/${outputName}`;
-          await electronApi.writeOutputFile(outputPath, convertedBuffer);
-          if (sourcePath) {
-            pendingSourceDeletionsRef.current = pendingSourceDeletionsRef.current.includes(sourcePath)
-              ? pendingSourceDeletionsRef.current
-              : [...pendingSourceDeletionsRef.current, sourcePath];
-          }
-        }
         updateFileState(id, { convertedFileUrl: url, status: 'success', progress: 100 });
+
+        if (deleteSources && sourcePath && !pendingSourceDeletionsRef.current.includes(sourcePath)) {
+          pendingSourceDeletionsRef.current.push(sourcePath);
+        }
+
         conversionTimings.push({ fileName: file.name, seconds: (performance.now() - conversionStartedAt) / 1000, status: 'success' });
       } catch (err: any) {
         const message = String(err);
@@ -1230,13 +1225,13 @@ const App: React.FC = () => {
             onDragOver={onDragOver}
             className="border-2 border-dashed border-gray-400 dark:border-gray-600 rounded-lg p-12 text-center cursor-pointer hover:border-cyan-500 dark:hover:border-cyan-400 transition"
         >
-            <input
+              <input
               id="file-upload"
               type="file"
               multiple
               className="hidden"
               onChange={handleFileChange}
-              accept="image/*,video/*,audio/*,application/pdf"
+                accept={conversionMode === 'model' ? '.stl,.obj,.fbx,.gltf,.glb,.skp' : 'image/*,video/*,audio/*,application/pdf'}
             />
             <input
                 id="folder-upload"
@@ -1246,7 +1241,13 @@ const App: React.FC = () => {
                 className="hidden"
                 onChange={handleFileChange}
             />
-             <div className="flex flex-col items-center justify-center space-y-4">
+            <div className="flex flex-col items-center justify-center space-y-4">
+              <div className="inline-flex rounded-lg border border-gray-300 bg-gray-100 p-1 dark:border-gray-600 dark:bg-gray-800" role="tablist" aria-label="Conversion type">
+                <button onClick={() => setConversionMode('media')} className={`rounded-md px-4 py-2 text-sm font-semibold transition ${conversionMode === 'media' ? 'bg-cyan-500 text-white' : 'text-gray-600 dark:text-gray-300'}`} role="tab" aria-selected={conversionMode === 'media'}>Media & bestanden</button>
+                <button onClick={() => setConversionMode('model')} className={`rounded-md px-4 py-2 text-sm font-semibold transition ${conversionMode === 'model' ? 'bg-cyan-500 text-white' : 'text-gray-600 dark:text-gray-300'}`} role="tab" aria-selected={conversionMode === 'model'}>3D Model Conversion</button>
+              </div>
+                {conversionMode === 'model' && <div className="max-w-xl rounded-lg border border-cyan-400/40 bg-cyan-50/70 px-4 py-3 text-left text-sm text-cyan-900 dark:bg-cyan-950/30 dark:text-cyan-100"><strong>3D-engine v1.1.0</strong><span className="ml-2">STL, OBJ, FBX, GLTF, GLB en SKP. SKP kan naar GLB, OBJ en STL met mesh, materialen, UV's, normals, triangulatie en schaalbehoud.</span></div>}
+                {conversionMode === 'model' && <label className="flex items-center gap-3 text-sm font-semibold text-gray-700 dark:text-gray-200">Unit scaling<select value={modelUnitScale} onChange={event => setModelUnitScale(Number(event.target.value))} className="rounded-md border border-gray-300 bg-white px-3 py-2 font-normal text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-white"><option value={1}>1x - behouden</option><option value={0.001}>0.001x - mm naar m</option><option value={0.01}>0.01x - cm naar m</option><option value={1000}>1000x - m naar mm</option></select></label>}
                 <p className="text-gray-600 dark:text-gray-400">{t('drop_files_here', language)}</p>
                 <p className="text-gray-500 text-sm">{t('or', language)}</p>
                 <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
@@ -1617,6 +1618,10 @@ const App: React.FC = () => {
           <div className={`w-2 h-2 rounded-full ${isSvgReady ? 'bg-green-500' : 'bg-yellow-500 animate-pulse'}`}></div>
           <span>{t('svg_engine', language)}</span>
         </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-2 h-2 rounded-full bg-green-500"></div>
+          <span>3D Model Engine</span>
+        </div>
       </div>
     </div>
   );
@@ -1635,7 +1640,7 @@ interface FileItemProps {
 const FileItem = memo<FileItemProps>(({ fileItem, isConverting, updateFileState, removeFile, onRetry, onDownload, lang }) => {
   const { id, file, status, targetFormat, readProgress, progress, etaSeconds, convertedFileUrl, error } = fileItem;
 
-  const { isImage, isVideo, isAudio, isPdf } = getMediaType(file);
+  const { isImage, isVideo, isAudio, isPdf, isModel } = getMediaType(file);
   const isProcessing = status === 'reading' || status === 'converting';
 
   const availableFormats = useMemo(() => {
@@ -1643,8 +1648,11 @@ const FileItem = memo<FileItemProps>(({ fileItem, isConverting, updateFileState,
     if (isVideo) return [ConversionTarget.MP4, ConversionTarget.WEBM, ConversionTarget.WMV, ConversionTarget.MKV, ConversionTarget.MP3, ConversionTarget.WAV, ConversionTarget.FLAC, ConversionTarget.OGG];
     if (isAudio) return [ConversionTarget.MP3, ConversionTarget.WAV, ConversionTarget.FLAC, ConversionTarget.OGG, ConversionTarget.TXT, ConversionTarget.SRT];
     if (isPdf) return [ConversionTarget.TXT, ConversionTarget.SRT];
+    if (isModel) return getModelFormat(file.name) === 'SKP'
+      ? [ConversionTarget.STL, ConversionTarget.OBJ, ConversionTarget.GLB]
+      : [ConversionTarget.STL, ConversionTarget.OBJ, ConversionTarget.GLTF, ConversionTarget.GLB];
     return [];
-  }, [isImage, isVideo, isAudio, isPdf]);
+  }, [isImage, isVideo, isAudio, isPdf, isModel]);
 
   return (
     <div className="bg-gray-200 dark:bg-gray-700/50 p-4 rounded-lg space-y-3">
@@ -1697,6 +1705,11 @@ const FileItem = memo<FileItemProps>(({ fileItem, isConverting, updateFileState,
                  <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mx-auto text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                  <p className="mt-2 text-sm text-gray-700 dark:text-gray-300">{targetFormat} {t('preview_not_supported', lang)}</p>
                </div>
+            ) : isModel ? (
+                <div className="mx-auto max-w-xs rounded-lg bg-gray-300 p-4 text-center dark:bg-gray-700">
+                  <div className="text-4xl" aria-hidden="true">3D</div>
+                  <p className="mt-2 text-sm text-gray-700 dark:text-gray-300">{targetFormat} model klaar voor download</p>
+                </div>
             ) : isVideo ? (
                 <video src={convertedFileUrl} controls loop className="max-w-full max-h-48 mx-auto rounded-lg" />
             ) : isAudio ? (
@@ -1762,15 +1775,16 @@ const ProgressBar: React.FC<{label: string; progress: number, etaSeconds?: numbe
 }
 
 const FileIcon: React.FC<{ type: string; name: string }> = ({ type, name }) => {
-    const { isImage, isVideo, isAudio, isPdf } = getMediaType(new File([], name, { type }));
+    const { isImage, isVideo, isAudio, isPdf, isModel } = getMediaType(new File([], name, { type }));
     
     const icon = useMemo(() => {
         if (isImage) return <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />;
         if (isVideo) return <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2-2v8a2 2 0 002 2z" />;
         if (isAudio) return <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 6l12-3" />;
         if (isPdf) return <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />;
+        if (isModel) return <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3zm0 0v9m8-4.5l-8 4.5m-8-4.5l8 4.5" />;
         return <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />;
-    }, [isImage, isVideo, isAudio, isPdf]);
+    }, [isImage, isVideo, isAudio, isPdf, isModel]);
 
     return (
         <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-gray-500 dark:text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
