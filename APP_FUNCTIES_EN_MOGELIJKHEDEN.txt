@@ -1,0 +1,650 @@
+FILE CONVERTER PRO (FCP)
+Uitgebreid overzicht van functies, mogelijkheden en ondersteunende engines
+Versie: 1.1.0
+
+======================================================================
+1. ALGEMEEN
+======================================================================
+
+File Converter Pro (FCP) is een lokale Windows-desktopapplicatie voor het
+converteren, verwerken, transcriberen, bundelen en beveiligen van bestanden.
+
+Belangrijke eigenschappen:
+
+- Werkt lokaal op de computer.
+- Bestanden worden niet naar een online conversieservice geupload.
+- Conversies kunnen individueel of in batches worden uitgevoerd.
+- Bestanden en volledige mappen kunnen worden toegevoegd.
+- Conversies kunnen zonder ingestelde uitvoermap worden uitgevoerd.
+- Resultaten kunnen individueel worden gedownload of als ZIP worden gebundeld.
+- De app ondersteunt meerdere engines voor verschillende bestandstypen.
+- De applicatie is gebouwd voor Windows als Electron-desktopapp.
+- De huidige release is versie 1.1.0.
+
+Internet wordt alleen gebruikt voor de optionele controle op nieuwe FCP-updates
+via de GitHub Releases-pagina. Updates worden niet zonder bevestiging gedownload
+of geinstalleerd.
+
+Eigen Windows-bestandslocaties van FCP:
+
+- Updatebestanden en gedownloade updategegevens:
+  %LOCALAPPDATA%\bestandsconverter-updater
+- Geinstalleerde programmabestanden:
+  %LOCALAPPDATA%\Programs\bestandsconverter
+- Applicatie-instellingen en gebruikersgegevens:
+  %APPDATA%\bestandsconverter
+
+Voor een Windows-account met de naam username worden deze paden bijvoorbeeld:
+
+  C:\Users\username\AppData\Local\bestandsconverter-updater
+  C:\Users\username\AppData\Local\Programs\bestandsconverter
+  C:\Users\username\AppData\Roaming\bestandsconverter
+
+Deze locaties staan los van de uitvoermap die in FCP wordt ingesteld en van de
+tijdelijke conversiemappen onder %LOCALAPPDATA%\Temp.
+
+======================================================================
+2. ONDERSTEUNDE CONVERSIECATEGORIEEN
+======================================================================
+
+FCP ondersteunt de volgende hoofdgroepen:
+
+- Afbeeldingen
+- Video
+- Audio
+- PDF-documenten
+- Audio-transcriptie
+- 3D-modellen
+- ZIP-export en beveiligde opslag
+
+======================================================================
+3. AFBEELDINGSCONVERSIE
+======================================================================
+
+Ondersteunde invoer voor afbeeldingen:
+
+- JPG / JPEG
+- PNG
+- WEBP
+- HEIC
+- HEIF
+- AVIF
+- ICO
+- BMP
+- TIFF
+- SVG
+
+Ondersteunde uitvoerformaten:
+
+- JPG
+- PNG
+- WEBP
+- HEIC
+- AVIF
+- PDF
+- ICO
+- SVG
+
+Mogelijkheden:
+
+- Afbeeldingen converteren naar gangbare rasterformaten.
+- Afbeeldingen converteren naar PDF.
+- Afbeeldingen vectoriseren naar SVG.
+- Afbeeldingen omzetten naar ICO-pictogrammen.
+- Meerdere afbeeldingen tegelijk verwerken.
+- Meerdere afbeeldingen samenvoegen tot een enkel PDF-document.
+- Automatisch een liggende of staande PDF-orientatie kiezen.
+- Afbeeldingen behouden via lokale object-URL-verwerking om onnodig
+  geheugengebruik te beperken.
+
+Opmerking:
+
+- HEIC, HEIF en AVIF gebruiken de native media/FFmpeg-route wanneer dit nodig
+  is, omdat de browsercanvas deze formaten niet altijd rechtstreeks kan lezen
+  of schrijven.
+
+======================================================================
+4. VIDEOCONVERSIE
+======================================================================
+
+Ondersteunde video-invoer:
+
+- MP4
+- WEBM
+- WMV
+- MKV
+- AVI
+- MOV
+- FLV
+- GIF als bewegend beeld/mediaformaat
+
+Ondersteunde video-uitvoer:
+
+- MP4
+- WEBM
+- WMV
+- MKV
+
+Extra mogelijkheden:
+
+- Video naar audio converteren.
+- Video's in batches verwerken.
+- Native voortgangsrapportage ontvangen.
+- Geschatte resterende tijd tonen.
+- Conversie annuleren wanneer een proces vastloopt of te lang duurt.
+- Hardware- en GPU-informatie detecteren voor een betere native verwerking.
+
+======================================================================
+5. AUDIOCONVERSIE
+======================================================================
+
+Ondersteunde audio-invoer:
+
+- MP3
+- WAV
+- FLAC
+- OGG
+- M4A
+- AAC
+
+Ondersteunde audio-uitvoer:
+
+- MP3
+- WAV
+- FLAC
+- OGG
+
+Extra mogelijkheden:
+
+- Audio naar andere audioformaten converteren.
+- Audio lokaal transcriberen naar tekst.
+- Transcriptie opslaan als TXT.
+- Transcriptie opslaan als SRT-ondertiteling.
+- Audio in batches verwerken.
+- Voortgang en resterende tijd tonen.
+- WAV-invoer wordt voor Whisper automatisch genormaliseerd wanneer dat nodig
+  is voor het transcriptieproces.
+
+======================================================================
+6. AUDIO-TRANSCRIPTIE
+======================================================================
+
+Ondersteunde transcriptie-uitvoer:
+
+- TXT
+- SRT
+
+De transcriptie werkt lokaal met de meegeleverde Whisper.cpp-runtime en het
+meegeleverde basismodel. Er is geen online transcriptieservice nodig.
+
+Mogelijkheden:
+
+- Audio selecteren.
+- TXT of SRT als uitvoer kiezen.
+- Transcriptievoortgang volgen.
+- Transcripties rechtstreeks opslaan of meenemen in een ZIP-export.
+- Transcripties in een batch verwerken.
+
+======================================================================
+7. PDF-FUNCTIES
+======================================================================
+
+Ondersteunde PDF-functies:
+
+- PDF-bestanden inlezen.
+- Tekst uit PDF-bestanden extraheren.
+- PDF-tekst uitvoeren als TXT.
+- Afbeeldingen converteren naar PDF.
+- Meerdere afbeeldingen combineren tot een PDF.
+- PDF-resultaten meenemen in downloads en ZIP-exports.
+
+======================================================================
+8. 3D MODEL CONVERSION
+======================================================================
+
+FCP bevat vanaf versie 1.1.0 een aparte modus: 3D Model Conversion.
+
+Ondersteunde 3D-formaten:
+
+- STL
+- OBJ
+- FBX
+- GLTF
+- GLB
+- SKP (SketchUp)
+
+Ondersteunde 3D-uitvoerformaten:
+
+- STL
+- OBJ
+- GLTF
+- GLB
+
+Gebruikelijke automatische conversieroutes:
+
+- STL -> OBJ
+- OBJ -> GLB
+- FBX -> GLTF
+- GLTF -> GLB
+- GLB -> GLTF
+- SKP -> GLB
+
+SKP-specifieke routes:
+
+- SKP -> GLB
+- SKP -> OBJ
+- SKP -> STL
+
+Mogelijkheden van de 3D-engine:
+
+- Mesh parsing.
+- Vertex- en face-verwerking.
+- Conversie tussen 3D-modelrepresentaties.
+- Normals opnieuw berekenen.
+- Tangents berekenen wanneer UV-data aanwezig is.
+- Materialen meenemen waar het bronformaat dit ondersteunt.
+- UV-data en UV-gerelateerde informatie behouden waar mogelijk.
+- Triangulatie via de gebruikte loaders/exporters.
+- Modelstructuur en scene-informatie verwerken.
+- Uniforme unit scaling toepassen.
+- Conversievoortgang tonen.
+- 3D-resultaten downloaden via dezelfde queue als andere bestanden.
+
+Beschikbare schaalinstellingen:
+
+- 1x - schaal behouden.
+- 0.001x - millimeter naar meter.
+- 0.01x - centimeter naar meter.
+- 1000x - meter naar millimeter.
+
+SKP-beperking:
+
+- SKP wordt ondersteund als invoerformaat.
+- SKP kan momenteel worden geconverteerd naar GLB, OBJ en STL.
+- Terugschrijven van OBJ, GLB of andere formaten naar SKP is niet beschikbaar,
+  omdat de gebruikte open-source parser geen publieke SKP-writer aanbiedt.
+
+======================================================================
+9. CONVERSIEWACHTRIJ EN BATCHVERWERKING
+======================================================================
+
+De centrale conversiewachtrij ondersteunt:
+
+- Meerdere bestanden tegelijk toevoegen.
+- Bestanden en mappen slepen en neerzetten.
+- Mappen recursief doorlopen.
+- Relatieve mapstructuren behouden tijdens ZIP-export.
+- Per bestand een uitvoerformaat kiezen.
+- Conversies parallel verwerken met meerdere workers.
+- Per bestand de status tonen:
+  - In behandeling
+  - Lezen
+  - Converteren
+  - Geslaagd
+  - Mislukt
+- Leesvoortgang tonen.
+- Conversievoortgang tonen.
+- Geschatte resterende tijd tonen.
+- Individuele bestanden opnieuw proberen.
+- Alle mislukte bestanden opnieuw proberen.
+- Bestanden uit de wachtrij verwijderen.
+- De volledige wachtrij leegmaken.
+- Een actieve conversie annuleren wanneer dat beschikbaar is.
+
+Bulkacties:
+
+- Een afbeeldingsformaat op alle afbeeldingen toepassen.
+- Een videoformaat op alle video's toepassen.
+- Een audioformaat op alle audio toepassen.
+- Afbeeldingen combineren tot een PDF via een bulkoptie.
+
+======================================================================
+10. DOWNLOADS EN ZIP-EXPORT
+======================================================================
+
+Mogelijkheden:
+
+- Individuele conversieresultaten downloaden.
+- Alle geslaagde resultaten als ZIP downloaden.
+- Een eigen ZIP-bestandsnaam instellen.
+- Een uitvoermap kiezen voor automatische opslag.
+- ZIP-bestanden met wachtwoord beveiligen.
+- ZIP-voortgang volgen.
+- Bestandsnamen en relatieve mappen tijdens ZIP-export behouden.
+- Dubbele paden automatisch uniek maken met een volgnummer.
+
+Wanneer geen uitvoermap is ingesteld, opent Windows een locatiekeuze voor het
+opslaan van individuele bestanden of ZIP-bestanden.
+
+======================================================================
+11. BEVEILIGDE KLUIS
+======================================================================
+
+Een gekozen uitvoermap kan worden ingesteld als versleutelde vault/kluis.
+
+Mogelijkheden:
+
+- Een uitvoermap als kluis instellen.
+- Een kluiswachtwoord instellen.
+- Een minimale wachtwoordlengte van 10 tekens afdwingen.
+- Een maximale opslagquota instellen van 0,1 tot 1024 GB.
+- ZIP-resultaten versleuteld in de kluis opslaan.
+- De kluis vanuit FCP ontgrendelen.
+- Kluisbestanden bekijken.
+- Kluisbestanden exporteren.
+- Kluisbestanden verwijderen.
+- De kluis uitschakelen vanuit de instellingen.
+- Quota controleren voordat nieuwe inhoud wordt opgeslagen.
+
+Beveiligingsmodel:
+
+- Bestandsinhoud wordt versleuteld met AES-256-GCM.
+- De sleutel wordt afgeleid met Argon2id.
+- Kluisbestanden worden als .fcpv-containers opgeslagen.
+- De bestanden staan onder een verborgen .fcp-vault-map in de uitvoermap.
+- Windows Verkenner kan de containers zien, maar niet lezen of ontsleutelen.
+- Het wachtwoord wordt niet door de app opgeslagen.
+- Een vergeten wachtwoord kan niet worden hersteld.
+
+ZIP-wachtwoordbeveiliging gebruikt AES-256-encryptie via zip.js.
+
+======================================================================
+12. BRONBESTANDEN VERWIJDEREN
+======================================================================
+
+Optioneel kan FCP bronbestanden na een geslaagde conversie verwijderen.
+
+Veiligheidsstappen:
+
+- De optie staat standaard uit.
+- Bronbestanden worden eerst naar lokale tijdelijke opslag gekopieerd.
+- Verwijdering vindt pas plaats nadat de uitvoer succesvol is geschreven.
+- De gebruiker moet de verwijdering expliciet bevestigen.
+- Wanneer geen uitvoermap is ingesteld, worden bronbestanden niet automatisch
+  verwijderd.
+- Deze actie kan niet ongedaan worden gemaakt.
+
+======================================================================
+13. INSTELLINGEN EN GEBRUIKERSINTERFACE
+======================================================================
+
+Beschikbare interfacefuncties:
+
+- Licht thema.
+- Donker thema.
+- Taalkeuze.
+- Eerste-start onboarding.
+- Meertalige interface.
+- Instelbare UI-transparantie.
+- Eigen achtergrondafbeelding instellen.
+- Achtergrondafbeelding wijzigen.
+- Achtergrond uitschakelen.
+- Uitvoermap kiezen.
+- Uitvoermap wissen.
+- Kluis openen vanuit de instellingen.
+- GPU-detectie tonen.
+- Engine-status onderaan de app tonen.
+- Volledig scherm gebruiken.
+- F11 gebruiken om fullscreen aan of uit te zetten.
+- Automatische updatecontrole uitvoeren.
+- Beschikbare updates later installeren of direct installeren.
+
+Beschikbare interface-talen:
+
+- Nederlands
+- English
+- Deutsch
+- Francais
+- Turkce
+- 中文
+- 日本語
+
+======================================================================
+14. ONDERSTEUNENDE ENGINES EN LIBRARIES
+======================================================================
+
+14.1 FFmpeg / native Media Engine
+
+Verantwoordelijk voor:
+
+- Video-conversie.
+- Audio-conversie.
+- Native HEIC/HEIF/AVIF-conversie wanneer nodig.
+- Native voortgangsrapportage.
+- Geschatte resterende tijd bij media-conversies.
+- Native Windows-conversie via ffmpeg-static en de Electron-main-process.
+
+Belangrijke packages:
+
+- @ffmpeg/ffmpeg
+- @ffmpeg/core
+- @ffmpeg/util
+- ffmpeg
+- ffmpeg-static
+- fluent-ffmpeg
+
+14.2 Three.js 3D Model Engine
+
+Verantwoordelijk voor:
+
+- OBJ import.
+- FBX import.
+- GLTF import.
+- GLB import.
+- STL import.
+- OBJ export.
+- STL export.
+- GLTF/GLB export.
+- Scene- en meshverwerking.
+- Normals, tangents, UV-data en schaalverwerking.
+
+Gebruikte Three.js-componenten:
+
+- OBJLoader
+- FBXLoader
+- GLTFLoader
+- STLLoader
+- OBJExporter
+- STLExporter
+- GLTFExporter
+
+Belangrijke package:
+
+- three
+
+14.3 OpenSKP Engine
+
+Verantwoordelijk voor:
+
+- SketchUp SKP-bestanden parsen.
+- Scene-informatie uit SKP lezen.
+- Materialen en geometrie uit SKP verwerken waar beschikbaar.
+- SKP exporteren naar GLB.
+- SKP exporteren naar OBJ.
+- SKP exporteren naar binary STL.
+
+Belangrijke package:
+
+- openskp
+
+14.4 Browser Image / Canvas Engine
+
+Verantwoordelijk voor:
+
+- JPG-conversie.
+- PNG-conversie.
+- WEBP-conversie.
+- Basisafbeeldingsverwerking.
+- Afbeeldingen in canvas tekenen.
+- Lokale afbeeldingspreview.
+
+14.5 Sharp
+
+Sharp is als lokale image-processing dependency aanwezig voor native/high-
+performance afbeeldingsverwerking en toekomstige uitbreidingen van de
+afbeeldingsengine.
+
+14.6 ImageTracer
+
+Verantwoordelijk voor:
+
+- Rasterafbeeldingen omzetten naar SVG-vectorafbeeldingen.
+
+Belangrijke package:
+
+- imagetracerjs
+
+14.7 PDF.js Engine
+
+Verantwoordelijk voor:
+
+- PDF-bestanden openen.
+- PDF-pagina's verwerken.
+- Tekst en tekstitems uit PDF-pagina's extraheren.
+
+Belangrijke package:
+
+- pdfjs-dist
+
+14.8 jsPDF Engine
+
+Verantwoordelijk voor:
+
+- PDF-bestanden maken vanuit afbeeldingen.
+- Meerdere afbeeldingen combineren tot een PDF.
+- PDF-pagina's en orientatie samenstellen.
+
+Belangrijke package:
+
+- jspdf
+
+14.9 Whisper.cpp Transcriptie Engine
+
+Verantwoordelijk voor:
+
+- Lokale audio-transcriptie.
+- TXT-uitvoer.
+- SRT-uitvoer.
+- Transcriptievoortgang.
+- Lokale verwerking zonder cloudservice.
+
+Belangrijke onderdelen:
+
+- whisper-node
+- whisper-runtime
+- whisper-cli.exe op Windows
+- ggml-base.en.bin
+
+14.10 zip.js Archive Engine
+
+Verantwoordelijk voor:
+
+- ZIP-archieven maken.
+- Meerdere conversieresultaten bundelen.
+- ZIP-voortgang rapporteren.
+- AES-256 ZIP-encryptie.
+- Bestandsstructuren binnen ZIP-bestanden behouden.
+
+Belangrijke package:
+
+- @zip.js/zip.js
+
+14.11 Electron Security and Native Bridge
+
+Electron verzorgt:
+
+- De Windows-desktopcontainer.
+- De native file dialogs.
+- Opslaan naar lokale uitvoermappen.
+- Tijdelijke bestandsopslag.
+- Native FFmpeg-aanroepen.
+- Vault-opslag.
+- AES-256-GCM-encryptie.
+- Argon2id-sleutelafleiding.
+- GPU-detectie.
+- Updatecontrole en update-installatie.
+- Preload-bridge tussen renderer en native main process.
+
+======================================================================
+15. LOKALE TIJDELIJKE BESTANDEN
+======================================================================
+
+Tijdens conversies gebruikt FCP lokale tijdelijke opslag voor betrouwbaarheid:
+
+- Tijdelijke batchmappen:
+  %LOCALAPPDATA%\\Temp\\fcp-batches\\<batch-naam>
+- Tijdelijke stagingmap:
+  %LOCALAPPDATA%\\Temp\\fcp-staging
+
+Staged bronbestanden worden na afloop van de verwerking automatisch opgeruimd.
+
+======================================================================
+16. FOUTAFHANDELING EN HERSTEL
+======================================================================
+
+FCP ondersteunt:
+
+- Per-bestand foutstatussen.
+- Leesfouten melden.
+- Beschadigde of niet-ondersteunde bronbestanden herkennen.
+- FFmpeg-fouten samenvatten in begrijpelijke meldingen.
+- Mislukte conversies opnieuw proberen.
+- Alle mislukte items opnieuw proberen.
+- Vastgelopen mediaconversies detecteren.
+- Een actieve conversie annuleren.
+- Conversiestatistieken en prestatierapporten bijhouden.
+- Een debug.txt-rapport naar de uitvoermap schrijven wanneer beschikbaar.
+
+======================================================================
+17. UPDATE- EN DISTRIBUTIEMOGELIJKHEDEN
+======================================================================
+
+Voor ontwikkelaars:
+
+- npm install - dependencies installeren.
+- npm run dev - Vite en Electron in development starten.
+- npm run lint - TypeScript controleren.
+- npm run build - productie-webbuild maken.
+- npm run dist - webbuild en Windows-installer maken.
+- npm run preview - productiebuild lokaal previewen.
+
+Voor distributie:
+
+- Windows NSIS-installer.
+- Electron-builder-configuratie.
+- Whisper-runtime wordt meegeleverd.
+- Whisper-basismodel wordt meegeleverd.
+- FFmpeg-runtime wordt meegeleverd.
+- Eindgebruikers hebben geen Node.js nodig.
+- Eindgebruikers hebben geen aparte Whisper- of FFmpeg-installatie nodig.
+
+======================================================================
+18. BEKENDE BEPERKINGEN
+======================================================================
+
+- SKP wordt alleen als invoer ondersteund; SKP-uitvoer is niet beschikbaar.
+- De daadwerkelijke ondersteuning van exotische media-codecs hangt af van
+  FFmpeg en de gebruikte bronbestanden.
+- Zeer grote video-, audio- en 3D-bestanden kunnen veel RAM, CPU en tijdelijke
+  schijfruimte gebruiken.
+- De browsercanvas kan niet elk HEIC-, HEIF- of AVIF-bestand direct verwerken;
+  daarvoor wordt de native media-engine gebruikt.
+- Materialen en textures kunnen bij conversie afhankelijk zijn van wat het
+  bronformaat en de gebruikte loader beschikbaar stellen.
+- ZIP- en vaultbestanden zijn bedoeld voor gebruik binnen de FCP-workflow.
+- Een vergeten vault-wachtwoord kan niet worden hersteld.
+- Automatische bronverwijdering is onomkeerbaar na bevestiging.
+- De productiebuild kan grote JavaScript-bundles bevatten door de combinatie
+  van media-, PDF- en 3D-engines.
+
+======================================================================
+19. PRIVACY EN BEVEILIGING IN HET KORT
+======================================================================
+
+- Conversies vinden lokaal plaats.
+- Transcripties vinden lokaal plaats.
+- De app gebruikt geen cloudbackend voor de normale conversieworkflow.
+- Internettoegang is alleen nodig voor de optionele updatecontrole.
+- Vault-inhoud wordt lokaal versleuteld.
+- Het vault-wachtwoord wordt niet opgeslagen.
+- Bronbestanden worden alleen verwijderd wanneer de gebruiker dit inschakelt en bevestigt.

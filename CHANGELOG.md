@@ -6,13 +6,32 @@ This project uses the structure of [Keep a Changelog](https://keepachangelog.com
 
 ## [Unreleased]
 
-## [1.1.0] - 2026-09-21
+## [1.2.0] - 2026-09-27
 
 ### Added
 
-- A dedicated 3D Model Conversion mode.
-- STL, OBJ, FBX, GLTF and GLB conversion with mesh, materials, UV, normals, tangents, triangulation and unit-scale handling.
-- SKP import with conversion to GLB, OBJ and STL.
+- Convert DOCX documents to TXT, HTML or PDF, and XLSX workbooks to CSV, JSON, TXT or PDF
+- Extract ZIP, 7Z, TAR, GZ/TGZ, BZ2/TBZ, XZ/TXZ, LZMA and CAB archives into separate folders
+- Validate archive paths and links before extraction, with entry-count and expanded-size safety limits
+
+### Changed
+
+- Office conversion engines load on demand so they do not increase normal app startup loading
+- Archive extraction asks for a separate destination when the configured output folder is an encrypted vault
+
+## [1.1.0-patch1] - 2026-09-27
+
+### Changed
+
+- ZIP exports now stream to a temporary file instead of keeping the complete archive in renderer memory, improving reliability for large batches
+- Encrypted vault exports now stream encryption and encoding to disk to avoid loading the complete ZIP into memory
+- ZIP export errors now identify the file that failed to add and show the underlying error
+
+## [1.1.0] - 2026-09-21
+
+- Added a dedicated 3D Model Conversion mode.
+- Added STL, OBJ, FBX, GLTF and GLB conversion with mesh, materials, UV, normals, tangents, triangulation and unit-scale handling.
+- Added SKP import with conversion to GLB, OBJ and STL.
 
 ## [1.0.7-patch3] - 2026-09-17
 

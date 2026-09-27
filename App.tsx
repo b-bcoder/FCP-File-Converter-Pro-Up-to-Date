@@ -2,13 +2,14 @@ import React, { useState, useCallback, useMemo, useEffect, useRef, memo } from '
 import { ConversionTarget, FileStatus, ConversionFile } from './types';
 import { convertAudioToText, convertImage, convertMedia, convertPdfToText } from './services/fileConverter';
 import { convertModel, getModelFormat, is3DModel, ModelFormat } from './services/modelConverter';
+import { getOfficeFormats, isOfficeDocument } from './services/fileFormats';
 import { t } from './i18n';
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import coreURL from '@ffmpeg/core?url';
 import wasmURL from '@ffmpeg/core/wasm?url';
 import workerURL from '@ffmpeg/ffmpeg/worker?url';
 import { jsPDF } from 'jspdf';
-import { BlobReader, BlobWriter, ZipWriter } from '@zip.js/zip.js';
+import { BlobReader, ZipWriter } from '@zip.js/zip.js';
 import ImageTracer from 'imagetracerjs';
 
 interface FileSystemEntry {
@@ -32,15 +33,49 @@ const getMediaType = (file: File) => {
     const isAudio = type.startsWith('audio/') || /\.(mp3|wav|flac|ogg|m4a|aac)$/.test(name);
     const isPdf = type === 'application/pdf' || /\.pdf$/i.test(name);
     const isModel = is3DModel(file);
+    const isOffice = isOfficeDocument(file.name);
+    const isArchive = /\.(zip|7z|tar|gz|tgz|bz2|tbz|tbz2|xz|txz|cab|lzma)$/i.test(name);
     
     // Images that can be handled by the browser's Canvas/HEIF engine
     const isImage = (type.startsWith('image/') || /\.(jpg|jpeg|png|webp|heic|heif|avif|ico|bmp|tiff|svg)$/.test(name)) && !isVideo;
     
-    return { isImage, isVideo, isAudio, isPdf, isModel, isSupported: isImage || isVideo || isAudio || isPdf || isModel };
+    return { isImage, isVideo, isAudio, isPdf, isModel, isOffice, isArchive, isSupported: isImage || isVideo || isAudio || isPdf || isModel || isOffice || isArchive };
 };
 
 // Helper to check if a file is supported
 const isSupportedMedia = (file: File): boolean => getMediaType(file).isSupported;
+
+const createZipFileWriter = (electronApi: any, filePath: string) => {
+  const maxChunkBytes = 4 * 1024 * 1024;
+  let chunks: Uint8Array[] = [];
+  let queuedBytes = 0;
+
+  const flush = async () => {
+    if (!queuedBytes) return;
+    const data = new Uint8Array(queuedBytes);
+    let offset = 0;
+    for (const chunk of chunks) {
+      data.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    chunks = [];
+    queuedBytes = 0;
+    await electronApi.appendZipFile(filePath, data);
+  };
+
+  return new WritableStream<Uint8Array>({
+    async write(chunk) {
+      chunks.push(chunk);
+      queuedBytes += chunk.byteLength;
+      if (queuedBytes >= maxChunkBytes) await flush();
+    },
+    close: flush,
+    abort() {
+      chunks = [];
+      queuedBytes = 0;
+    },
+  });
+};
 
 // Helper function to recursively traverse directories and collect files with their relative paths
 async function traverseDirectory(entry: FileSystemEntry, currentPath: string = ''): Promise<{ file: File; relativePath: string }[]> {
@@ -651,13 +686,15 @@ const App: React.FC = () => {
     .filter(item => isSupportedMedia(item.file))
     .map(item => {
       const { file, relativePath } = item;
-      const { isImage, isVideo, isAudio, isPdf, isModel } = getMediaType(file);
+      const { isImage, isVideo, isAudio, isPdf, isModel, isOffice, isArchive } = getMediaType(file);
       
       let defaultFormat: ConversionTarget | null = null;
       if (isVideo) defaultFormat = ConversionTarget.MP4;
       else if (isImage) defaultFormat = ConversionTarget.PNG;
       else if (isAudio) defaultFormat = ConversionTarget.MP3;
       else if (isPdf) defaultFormat = ConversionTarget.TXT;
+      else if (isOffice) defaultFormat = getOfficeFormats(file.name)[0] ?? null;
+      else if (isArchive) defaultFormat = ConversionTarget.EXTRACT;
       else if (isModel) {
         const sourceFormat = getModelFormat(file.name);
         defaultFormat = sourceFormat === 'STL' ? ConversionTarget.OBJ
@@ -813,7 +850,7 @@ const App: React.FC = () => {
       updateFileState(fileItem.id, { status: 'reading', readProgress: 0, progress: 0, error: null });
 
       const { id, file, targetFormat } = fileItem;
-      const { isImage, isVideo, isAudio, isPdf, isModel } = getMediaType(file);
+      const { isImage, isVideo, isAudio, isPdf, isModel, isOffice, isArchive } = getMediaType(file);
       const electronApi = (window as any).electronAPI;
       const sourcePath = electronApi?.getFilePath?.(file);
       let stagedPath: string | undefined;
@@ -823,12 +860,23 @@ const App: React.FC = () => {
         if (electronApi?.stageFile) {
           try {
             stagedPath = await electronApi.stageFile(sourcePath || await file.arrayBuffer(), file.name);
-            if (!isVideo && !isAudio && electronApi.readFile) {
+            if (!isVideo && !isAudio && !isArchive && !isOffice && electronApi.readFile) {
               conversionFile = new File([await electronApi.readFile(stagedPath)], file.name, { type: file.type });
             }
           } catch (stageError) {
             console.warn(`Could not stage ${file.name}; using the selected file instead.`, stageError);
           }
+        }
+        if (isArchive && targetFormat === ConversionTarget.EXTRACT) {
+          if (!stagedPath || !electronApi?.extractArchive) throw new Error('Archive extraction is unavailable in this app build.');
+          updateFileState(id, { status: 'converting', progress: 5 });
+          const extractionPath = await electronApi.extractArchive(stagedPath, vaultStatus.enabled ? undefined : outputDirectory || undefined, file.name);
+          updateFileState(id, { convertedFileUrl: '#', outputPath: extractionPath, status: 'success', progress: 100 });
+          if (deleteSources && sourcePath && !pendingSourceDeletionsRef.current.includes(sourcePath)) {
+            pendingSourceDeletionsRef.current.push(sourcePath);
+          }
+          conversionTimings.push({ fileName: file.name, seconds: (performance.now() - conversionStartedAt) / 1000, status: 'success' });
+          return;
         }
         let convertedBlob: Blob;
         const isHeifOrAvifSource = /\.(heic|heif|avif)$/i.test(file.name);
@@ -867,6 +915,10 @@ const App: React.FC = () => {
           );
         } else if (isPdf && targetFormat === ConversionTarget.TXT) {
           convertedBlob = await convertPdfToText(conversionFile, p => updateFileState(id, { progress: p }));
+          updateFileState(id, { status: 'converting' });
+        } else if (isOffice && [ConversionTarget.TXT, ConversionTarget.HTML, ConversionTarget.PDF, ConversionTarget.CSV, ConversionTarget.JSON].includes(targetFormat as any)) {
+          const { convertOfficeDocument } = await import('./services/documentConverter');
+          convertedBlob = await convertOfficeDocument(conversionFile, targetFormat as any, p => updateFileState(id, { progress: p }));
           updateFileState(id, { status: 'converting' });
         } else if (isAudio && (targetFormat === ConversionTarget.TXT || targetFormat === ConversionTarget.SRT)) {
           convertedBlob = await convertAudioToText(
@@ -1026,9 +1078,15 @@ const App: React.FC = () => {
     setShowEncryptionInfo(false);
 
     let zipWriter: any = null;
+    let zipFilePath = '';
 
     try {
-        zipWriter = new ZipWriter(new BlobWriter("application/zip"));
+        const electronApi = (window as any).electronAPI;
+        if (!electronApi?.createZipFile || !electronApi?.appendZipFile) {
+          throw new Error('Disk-based ZIP export is unavailable. Restart the app and try again.');
+        }
+        zipFilePath = await electronApi.createZipFile();
+        zipWriter = new ZipWriter(createZipFileWriter(electronApi, zipFilePath));
         const usedPaths = new Set<string>();
 
         for (let fileIndex = 0; fileIndex < successfulConversions.length; fileIndex++) {
@@ -1081,19 +1139,21 @@ const App: React.FC = () => {
               usedPaths.add(finalFileName);
             } catch (error: any) {
               console.error(`Failed to add ${fileItem.file.name} to zip:`, error);
+              throw new Error(`Could not add "${fileItem.file.name}" to the ZIP: ${error?.message || String(error)}`);
             }
             setZipProgress({ completed: fileIndex + 1, total: successfulConversions.length, currentFile: fileItem.file.name });
         }
 
         setZipProgress({ completed: successfulConversions.length, total: successfulConversions.length, currentFile: 'ZIP afronden...' });
-        const zipBlob = await zipWriter.close();
+        await zipWriter.close();
         zipWriter = null; 
         setZipProgress({ completed: successfulConversions.length, total: successfulConversions.length, currentFile: '' });
+        const zipFileNameToSave = `${zipFileName || 'converted-files'}.zip`;
         
         if (destination === 'vault') {
-          await (window as any).electronAPI.saveVaultFile({ data: await zipBlob.arrayBuffer(), fileName: `${zipFileName || 'converted-files'}.zip`, password: password || '' });
+          await electronApi.saveVaultFile({ filePath: zipFilePath, fileName: zipFileNameToSave, password: password || '' });
         } else {
-          await saveDownload(zipBlob, `${zipFileName || 'converted-files'}.zip`);
+          await electronApi.saveFile({ filePath: zipFilePath, fileName: zipFileNameToSave, outputDirectory: outputDirectory || undefined });
         }
 
         if (deleteSources && pendingSourceDeletionsRef.current.length > 0) {
@@ -1106,13 +1166,18 @@ const App: React.FC = () => {
 
     } catch (err: any) {
         console.error("Error creating ZIP file", err);
-        alert("An error occurred while creating the ZIP file. Check console for details.");
+      alert(`An error occurred while creating the ZIP file: ${err?.message || String(err)}`);
     } finally {
         if (zipWriter) {
              try { await zipWriter.close(); } catch(e: any) { /* ignore */ }
         }
         setIsDownloadingZip(false);
         setZipProgress({ completed: 0, total: 0, currentFile: '' });
+        if (zipFilePath) {
+          try { await (window as any).electronAPI.cleanupZipFile(zipFilePath); } catch (error) {
+            console.warn('Could not clean up temporary ZIP file:', error);
+          }
+        }
     }
   };
 
@@ -1638,9 +1703,9 @@ interface FileItemProps {
 }
 
 const FileItem = memo<FileItemProps>(({ fileItem, isConverting, updateFileState, removeFile, onRetry, onDownload, lang }) => {
-  const { id, file, status, targetFormat, readProgress, progress, etaSeconds, convertedFileUrl, error } = fileItem;
+  const { id, file, status, targetFormat, readProgress, progress, etaSeconds, convertedFileUrl, outputPath, error } = fileItem;
 
-  const { isImage, isVideo, isAudio, isPdf, isModel } = getMediaType(file);
+  const { isImage, isVideo, isAudio, isPdf, isModel, isOffice, isArchive } = getMediaType(file);
   const isProcessing = status === 'reading' || status === 'converting';
 
   const availableFormats = useMemo(() => {
@@ -1648,11 +1713,13 @@ const FileItem = memo<FileItemProps>(({ fileItem, isConverting, updateFileState,
     if (isVideo) return [ConversionTarget.MP4, ConversionTarget.WEBM, ConversionTarget.WMV, ConversionTarget.MKV, ConversionTarget.MP3, ConversionTarget.WAV, ConversionTarget.FLAC, ConversionTarget.OGG];
     if (isAudio) return [ConversionTarget.MP3, ConversionTarget.WAV, ConversionTarget.FLAC, ConversionTarget.OGG, ConversionTarget.TXT, ConversionTarget.SRT];
     if (isPdf) return [ConversionTarget.TXT, ConversionTarget.SRT];
+    if (isOffice) return getOfficeFormats(file.name);
+    if (isArchive) return [ConversionTarget.EXTRACT];
     if (isModel) return getModelFormat(file.name) === 'SKP'
       ? [ConversionTarget.STL, ConversionTarget.OBJ, ConversionTarget.GLB]
       : [ConversionTarget.STL, ConversionTarget.OBJ, ConversionTarget.GLTF, ConversionTarget.GLB];
     return [];
-  }, [isImage, isVideo, isAudio, isPdf, isModel]);
+  }, [isImage, isVideo, isAudio, isPdf, isModel, isOffice, isArchive, file.name]);
 
   return (
     <div className="bg-gray-200 dark:bg-gray-700/50 p-4 rounded-lg space-y-3">
@@ -1681,7 +1748,7 @@ const FileItem = memo<FileItemProps>(({ fileItem, isConverting, updateFileState,
               disabled={isConverting}
             >
               <option value="" disabled>{t('select_format', lang)}</option>
-              {availableFormats.map(format => <option key={format} value={format}>{format}</option>)}
+              {availableFormats.map(format => <option key={format} value={format}>{format === ConversionTarget.EXTRACT ? t('extract_archive', lang) : format}</option>)}
             </select>
           </div>
         </div>
@@ -1696,7 +1763,12 @@ const FileItem = memo<FileItemProps>(({ fileItem, isConverting, updateFileState,
 
       {status === 'success' && convertedFileUrl && (
         <div className="space-y-3">
-            {convertedFileUrl === '#' ? (
+            {targetFormat === ConversionTarget.EXTRACT && outputPath ? (
+              <div className="text-center p-4 bg-green-100 dark:bg-green-900/50 rounded-lg">
+                    <p className="text-sm text-green-800 dark:text-green-300">{t('archive_extracted_to', lang)}</p>
+                <p className="mt-1 break-all text-xs text-green-700 dark:text-green-400">{outputPath}</p>
+              </div>
+            ) : convertedFileUrl === '#' ? (
                 <div className="text-center p-4 bg-green-100 dark:bg-green-900/50 rounded-lg">
                     <p className="text-sm text-green-800 dark:text-green-300">✅ {t('combine_to_pdf', lang)}</p>
                 </div>
@@ -1709,6 +1781,11 @@ const FileItem = memo<FileItemProps>(({ fileItem, isConverting, updateFileState,
                 <div className="mx-auto max-w-xs rounded-lg bg-gray-300 p-4 text-center dark:bg-gray-700">
                   <div className="text-4xl" aria-hidden="true">3D</div>
                   <p className="mt-2 text-sm text-gray-700 dark:text-gray-300">{targetFormat} model klaar voor download</p>
+                </div>
+            ) : isOffice ? (
+                <div className="bg-gray-300 dark:bg-gray-700 p-4 text-center max-w-xs mx-auto rounded-lg">
+                  <p className="text-2xl font-bold text-gray-600 dark:text-gray-300">{targetFormat}</p>
+                  <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">{t('document_ready', lang)}</p>
                 </div>
             ) : isVideo ? (
                 <video src={convertedFileUrl} controls loop className="max-w-full max-h-48 mx-auto rounded-lg" />

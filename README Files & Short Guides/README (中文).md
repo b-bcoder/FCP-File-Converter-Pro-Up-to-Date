@@ -12,10 +12,6 @@ File Converter Pro 是一款适用于 Windows 的桌面应用程序，用于快�
 - 将图像转换为 JPG、PNG、WEBP、HEIC、AVIF、PDF、ICO 和 SVG
 - 将视频转换为 MP4、WEBM、WMV 和 MKV
 - 将音频转换为 MP3、WAV、FLAC 和 OGG
-- 在 STL、OBJ、FBX、GLTF 和 GLB 之间转换 3D 模型
-- 导入 SketchUp SKP 文件并转换为 GLB、OBJ 或 STL
-- 处理 3D 网格、顶点、面、法线、切线、材质和 UV 数据
-- 对 3D 几何体进行三角化并应用单位缩放，包括毫米到米和米到毫米
 - 使用 Whisper 在本地将音频转录为 TXT 或 SRT
 - 从 PDF 文件中提取文本
 - 将多张图像合并为一个 PDF
@@ -148,8 +144,6 @@ npm run dist
 - Electron：桌面运行环境
 - electron-builder：Windows 安装程序
 - FFmpeg 和 `ffmpeg-static`：视频和音频转换
-- Three.js：STL、OBJ、FBX、GLTF 和 GLB 的 3D 加载器与导出器
-- OpenSKP：SKP 解析以及导出为 GLB、OBJ 和 STL
 - PDF.js 和 jsPDF：读取和创建 PDF
 - zip.js：ZIP 文件和 AES-256 加密
 - AES-256-GCM：保险库内容加密
@@ -157,23 +151,6 @@ npm run dist
 - Node.js crypto API：安全的文件与保险库处理
 - Tailwind CSS、PostCSS 和 Autoprefixer：样式
 - `concurrently`：同时启动 Vite 和 Electron
-
-### 3D 转换引擎
-
-FCP 使用 Three.js 作为 3D 转换引擎的核心。其格式专用加载器和导出器
-支持 STL、OBJ、FBX、GLTF 和 GLB。转换过程中可以处理网格几何体、顶点、
-面、法线、切线、材质和 UV 数据，并进行三角化和单位缩放。
-
-SketchUp 文件（`.skp`）使用 OpenSKP 解析器。OpenSKP 读取 SketchUp 场景，
-并将其导出为 GLB、OBJ 或 STL。目前 SKP 仅支持作为输入格式；FCP 不会
-创建新的 SKP 文件。
-
-### 本地处理与安全
-
-转换和转录在 Electron 应用中本地运行。渲染进程使用隔离的 preload 桥接，
-而不是直接访问 Node.js。源文件不会上传到云服务。ZIP 文件可以使用
-AES-256 加密，保险库内容使用带 Argon2id 密钥派生的 AES-256-GCM 保护。
-FCP 不会保存保险库密码。
 
 ## 技术与隐私
 

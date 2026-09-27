@@ -12,10 +12,6 @@ File Converter Pro est une application de bureau Windows qui convertit localemen
 - Convertir les images en JPG, PNG, WEBP, HEIC, AVIF, PDF, ICO et SVG
 - Convertir les vidéos en MP4, WEBM, WMV et MKV
 - Convertir l'audio en MP3, WAV, FLAC et OGG
-- Convertir des modèles 3D entre STL, OBJ, FBX, GLTF et GLB
-- Importer des fichiers SketchUp SKP et les convertir en GLB, OBJ ou STL
-- Traiter les meshes 3D, les vertices, les faces, les normales, les tangentes, les matériaux et les données UV
-- Trianguler la géométrie 3D et appliquer une mise à l'échelle des unités, notamment mm vers m et m vers mm
 - Transcrire localement l'audio en TXT ou SRT avec Whisper
 - Extraire le texte des fichiers PDF
 - Combiner plusieurs images dans un seul PDF
@@ -152,8 +148,6 @@ L'installateur est créé dans `release/File Converter Pro Setup <version>.exe`.
 - Electron : environnement de bureau
 - electron-builder : installateur Windows
 - FFmpeg et `ffmpeg-static` : conversion vidéo et audio
-- Three.js : loaders et exporters 3D pour STL, OBJ, FBX, GLTF et GLB
-- OpenSKP : analyse des fichiers SKP et export vers GLB, OBJ et STL
 - PDF.js et jsPDF : lecture et création de PDF
 - zip.js : archives ZIP et chiffrement AES-256
 - AES-256-GCM : chiffrement du contenu du coffre
@@ -161,27 +155,6 @@ L'installateur est créé dans `release/File Converter Pro Setup <version>.exe`.
 - APIs crypto Node.js : traitement sécurisé des fichiers et du coffre
 - Tailwind CSS, PostCSS et Autoprefixer : styles
 - `concurrently` : lancer Vite et Electron ensemble
-
-### Moteur de conversion 3D
-
-FCP utilise Three.js comme moteur principal de conversion 3D. Ses loaders et
-exporters prennent en charge STL, OBJ, FBX, GLTF et GLB. La conversion peut
-traiter la géométrie des meshes, les vertices, les faces, les normales, les
-tangentes, les matériaux et les données UV, avec triangulation et mise à
-l'échelle des unités.
-
-Les fichiers SketchUp (`.skp`) utilisent l'analyseur OpenSKP. OpenSKP lit la
-scène SketchUp et l'exporte en GLB, OBJ ou STL. SKP est actuellement pris en
-charge uniquement comme format d'entrée ; FCP ne crée pas de nouveaux fichiers
-SKP.
-
-### Traitement local et sécurité
-
-Les conversions et transcriptions s'exécutent localement dans l'application
-Electron. Le renderer utilise une bridge preload isolée au lieu d'un accès
-direct à Node.js. Les fichiers source ne sont pas envoyés vers un service cloud.
-Les ZIP peuvent être protégés par AES-256 et le contenu du coffre utilise
-AES-256-GCM avec Argon2id. FCP ne stocke pas le mot de passe du coffre.
 
 ## Technologie et confidentialité
 

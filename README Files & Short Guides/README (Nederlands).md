@@ -1,6 +1,6 @@
 # File Converter Pro (FCP)
 
-File Converter Pro is een Windows-desktopapp waarmee je afbeeldingen, video, audio, PDF-bestanden en 3D-modellen lokaal converteert. Bestanden worden niet geüpload naar een online dienst.
+File Converter Pro is een Windows-desktopapp waarmee je afbeeldingen, video, audio, Office-documenten, PDF-bestanden en 3D-modellen lokaal converteert en gangbare archieven uitpakt. Bestanden worden niet geüpload naar een online dienst.
 
 ## Maker
 
@@ -12,12 +12,11 @@ File Converter Pro is een Windows-desktopapp waarmee je afbeeldingen, video, aud
 - Afbeeldingen converteren naar JPG, PNG, WEBP, HEIC, AVIF, PDF, ICO en SVG
 - Video converteren naar MP4, WEBM, WMV en MKV
 - Audio converteren naar MP3, WAV, FLAC en OGG
-- 3D-modellen converteren tussen STL, OBJ, FBX, GLTF en GLB
-- SketchUp-SKP-bestanden importeren en converteren naar GLB, OBJ of STL
-- 3D-meshes, vertices, faces, normals, tangents, materialen en UV-data verwerken
-- 3D-geometrie trianguleren en unitschaling toepassen, zoals mm naar m en m naar mm
 - Audio lokaal transcriberen naar TXT of SRT met Whisper
 - PDF-bestanden naar tekst converteren
+- DOCX-documenten naar TXT, HTML of PDF converteren
+- XLSX-werkmappen naar CSV (alleen het eerste werkblad), JSON, TXT of PDF converteren
+- ZIP-, 7Z-, TAR-, GZ/TGZ-, BZ2/TBZ-, XZ/TXZ-, LZMA- en CAB-archieven uitpakken
 - Meerdere afbeeldingen combineren tot één PDF
 - Bestanden en mappen tegelijk verwerken
 - Resolutie aanpassen
@@ -32,6 +31,8 @@ File Converter Pro is een Windows-desktopapp waarmee je afbeeldingen, video, aud
 - Instelbare achtergrond
 - Borderless fullscreen met `F11`
 - Dedicated-GPU-detectie en native FFmpeg in Electron
+
+DOCX wordt als platte tekst, eenvoudige HTML of tekst-PDF uitgevoerd. XLSX behoudt werkbladnamen en celtekst; CSV bevat alleen het eerste werkblad. XLSX-conversies zijn beperkt tot 1.000.000 cellen. Archieven worden uitgepakt in een nieuwe submap. Archieven met onveilige paden of links, meer dan 50.000 items, een lijst groter dan 4 MB of meer dan 100 GB uitgepakte data worden geweigerd.
 
 ## Systeemvereisten
 
@@ -152,8 +153,6 @@ De installer wordt gemaakt in `release/File Converter Pro Setup <versie>.exe`.
 - Electron: desktopruntime
 - electron-builder: Windows-installer
 - FFmpeg en `ffmpeg-static`: video- en audioconversie
-- Three.js: 3D-loaders en exporters voor STL, OBJ, FBX, GLTF en GLB
-- OpenSKP: SKP-parser en export naar GLB, OBJ en STL
 - PDF.js en jsPDF: PDF lezen en maken
 - zip.js: ZIP en AES-256
 - AES-256-GCM: versleuteling van kluisinhoud
@@ -161,25 +160,6 @@ De installer wordt gemaakt in `release/File Converter Pro Setup <versie>.exe`.
 - Node.js crypto APIs: veilige verwerking van bestanden en kluisdata
 - Tailwind CSS, PostCSS en Autoprefixer: styling
 - `concurrently`: Vite en Electron tegelijk starten
-
-### 3D-conversie-engine
-
-FCP gebruikt Three.js als kern van de 3D-conversie-engine. De formaatspecifieke
-loaders en exporters verwerken STL, OBJ, FBX, GLTF en GLB. Tijdens conversie
-kunnen mesh-geometrie, vertices, faces, normals, tangents, materialen en UV-data
-worden verwerkt, inclusief triangulatie en unitschaling.
-
-SketchUp-bestanden (`.skp`) gebruiken de OpenSKP-parser. OpenSKP leest de
-SketchUp-scene en exporteert naar GLB, OBJ of STL. SKP wordt momenteel alleen
-als invoer ondersteund; FCP schrijft geen nieuwe SKP-bestanden.
-
-### Lokale verwerking en beveiliging
-
-Conversie en transcriptie draaien lokaal in de Electron-applicatie. De renderer
-gebruikt een geisoleerde preload-bridge in plaats van directe Node.js-toegang.
-Bronbestanden worden niet naar een cloudservice geupload. ZIP-bestanden kunnen
-met AES-256 worden beveiligd; kluisinhoud gebruikt AES-256-GCM met Argon2id.
-Het kluiswachtwoord wordt niet door FCP opgeslagen.
 
 ## Techniek en privacy
 

@@ -239,6 +239,15 @@ export const translations = {
   converting: {
     en: "Converting", nl: "Converteren", tr: "Dönüştürülüyor", zh: "转换中", ja: "変換中", fr: "Conversion", de: "Konvertiere",
   },
+  document_ready: {
+    en: "Document ready to download", nl: "Document klaar om te downloaden", tr: "Belge indirilmeye hazır", zh: "文档已准备好下载", ja: "ドキュメントをダウンロードできます", fr: "Document prêt à télécharger", de: "Dokument kann heruntergeladen werden",
+  },
+  extract_archive: {
+    en: "Extract archive", nl: "Archief uitpakken", tr: "Arşivi çıkar", zh: "解压存档", ja: "アーカイブを展開", fr: "Extraire l'archive", de: "Archiv entpacken",
+  },
+  archive_extracted_to: {
+    en: "Extracted to", nl: "Uitgepakt naar", tr: "Şuraya çıkarıldı", zh: "已解压到", ja: "解凍先", fr: "Extrait vers", de: "Entpackt nach",
+  },
   preview_not_supported: {
     en: "preview not supported.", nl: "preview niet ondersteund.", tr: "önizleme desteklenmiyor.", zh: "不支持预览。", ja: "プレビューはサポートされていません。", fr: "aperçu non pris en charge.", de: "Vorschau nicht unterstützt.",
   },

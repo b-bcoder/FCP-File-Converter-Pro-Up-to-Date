@@ -1,5 +1,8 @@
 const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
 const fs = require('node:fs/promises');
+const { createReadStream, createWriteStream } = require('node:fs');
+const { Readable, Transform } = require('node:stream');
+const { pipeline } = require('node:stream/promises');
 const crypto = require('node:crypto');
 const { randomUUID } = require('node:crypto');
 const { spawn, spawnSync } = require('node:child_process');
@@ -7,6 +10,9 @@ const path = require('node:path');
 const os = require('node:os');
 const ffmpegPath = require('ffmpeg-static');
 const { hashRaw } = require('@node-rs/argon2');
+const sevenZipPath = app.isPackaged
+  ? require('7zip-bin').path7za.replace('app.asar', 'app.asar.unpacked')
+  : require('7zip-bin').path7za;
 
 const isDevelopment = !app.isPackaged;
 const developmentUrl = 'http://localhost:3000';
@@ -265,6 +271,75 @@ function decryptVaultPayload(container, key) {
   return Buffer.concat([decipher.update(Buffer.from(container.data, 'base64')), decipher.final()]);
 }
 
+async function saveVaultFileFromZipPath(config, key, sourcePath, fileName) {
+  const zipPath = resolveTempZipPath(sourcePath);
+  const zipStats = await fs.stat(zipPath);
+  const vaultDirectory = path.join(config.outputDirectory, '.fcp-vault');
+  await fs.mkdir(vaultDirectory, { recursive: true });
+  const entries = (await fs.readdir(vaultDirectory)).filter(name => name.endsWith('.fcpv'));
+  const currentSize = (await Promise.all(entries.map(async name => (await fs.stat(path.join(vaultDirectory, name))).size))).reduce((sum, size) => sum + size, 0);
+  const token = randomUUID();
+  const encryptedPayloadPath = path.join(vaultDirectory, `${token}.payload.tmp`);
+  const containerTempPath = path.join(vaultDirectory, `${token}.container.tmp`);
+  const storagePath = path.join(vaultDirectory, `${token}.fcpv`);
+  const nonce = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, nonce);
+
+  const payload = Readable.from((async function* () {
+    yield Buffer.from(`{"fileName":${JSON.stringify(fileName)},"data":"`);
+    let pending = Buffer.alloc(0);
+    for await (const chunk of createReadStream(zipPath)) {
+      const combined = pending.length ? Buffer.concat([pending, chunk]) : chunk;
+      const completeLength = combined.length - combined.length % 3;
+      if (completeLength) yield Buffer.from(combined.subarray(0, completeLength).toString('base64'));
+      pending = combined.subarray(completeLength);
+    }
+    if (pending.length) yield Buffer.from(pending.toString('base64'));
+    yield Buffer.from('"}');
+  })());
+
+  const createBase64Transform = () => {
+    let pending = Buffer.alloc(0);
+    return new Transform({
+      transform(chunk, _encoding, callback) {
+        const combined = pending.length ? Buffer.concat([pending, chunk]) : chunk;
+        const completeLength = combined.length - combined.length % 3;
+        if (completeLength) this.push(combined.subarray(0, completeLength).toString('base64'));
+        pending = combined.subarray(completeLength);
+        callback();
+      },
+      flush(callback) {
+        if (pending.length) this.push(pending.toString('base64'));
+        callback();
+      },
+    });
+  };
+
+  try {
+    await pipeline(payload, cipher, createWriteStream(encryptedPayloadPath, { flags: 'wx' }));
+    const containerPrefix = JSON.stringify({
+      magic: VAULT_MAGIC,
+      version: VAULT_VERSION,
+      nonce: nonce.toString('base64'),
+      tag: cipher.getAuthTag().toString('base64'),
+      data: '',
+    }).slice(0, -2);
+    await fs.writeFile(containerTempPath, containerPrefix, { flag: 'wx' });
+    await pipeline(createReadStream(encryptedPayloadPath), createBase64Transform(), createWriteStream(containerTempPath, { flags: 'a' }));
+    await fs.appendFile(containerTempPath, '"}');
+
+    const containerStats = await fs.stat(containerTempPath);
+    if (currentSize + containerStats.size > config.quotaBytes) throw new Error('The vault quota has been reached.');
+    await fs.rename(containerTempPath, storagePath);
+    return { storagePath, bytes: zipStats.size };
+  } finally {
+    await Promise.all([
+      fs.rm(encryptedPayloadPath, { force: true }),
+      fs.rm(containerTempPath, { force: true }),
+    ]);
+  }
+}
+
 ipcMain.handle('fcp:get-vault-status', async () => {
   const config = await readVaultConfig();
   return config ? { enabled: true, outputDirectory: config.outputDirectory, quotaBytes: config.quotaBytes } : { enabled: false };
@@ -296,8 +371,9 @@ ipcMain.handle('fcp:save-vault-file', async (_event, options) => {
   if (!config) throw new Error('No vault is configured.');
   const key = await deriveVaultKey(String(options?.password || ''), config.salt);
   decryptVaultPayload(config.verifier, key);
-  const data = Buffer.from(options?.data || []);
   const fileName = path.basename(String(options?.fileName || 'converted-files.zip'));
+  if (options?.filePath) return saveVaultFileFromZipPath(config, key, options.filePath, fileName);
+  const data = Buffer.from(options?.data || []);
   const vaultDirectory = path.join(config.outputDirectory, '.fcp-vault');
   await fs.mkdir(vaultDirectory, { recursive: true });
   const entries = (await fs.readdir(vaultDirectory)).filter(fileName => fileName.endsWith('.fcpv'));
@@ -534,6 +610,29 @@ ipcMain.handle('fcp:choose-output-directory', async () => {
   return result.canceled ? null : result.filePaths[0] || null;
 });
 ipcMain.handle('fcp:get-temp-directory', async () => app.getPath('temp'));
+function resolveTempZipPath(filePath) {
+  const zipDirectory = path.resolve(app.getPath('temp'), 'fcp-zips');
+  const resolvedPath = path.resolve(String(filePath || ''));
+  if (path.dirname(resolvedPath) !== zipDirectory || path.extname(resolvedPath).toLowerCase() !== '.zip') {
+    throw new Error('Invalid temporary ZIP path.');
+  }
+  return resolvedPath;
+}
+ipcMain.handle('fcp:create-zip-file', async () => {
+  const zipDirectory = path.join(app.getPath('temp'), 'fcp-zips');
+  const zipPath = path.join(zipDirectory, `${randomUUID()}.zip`);
+  await fs.mkdir(zipDirectory, { recursive: true });
+  await fs.writeFile(zipPath, Buffer.alloc(0), { flag: 'wx' });
+  return zipPath;
+});
+ipcMain.handle('fcp:append-zip-file', async (_event, filePath, data) => {
+  await fs.appendFile(resolveTempZipPath(filePath), Buffer.from(data));
+  return true;
+});
+ipcMain.handle('fcp:cleanup-zip-file', async (_event, filePath) => {
+  await fs.rm(resolveTempZipPath(filePath), { force: true });
+  return true;
+});
 ipcMain.handle('fcp:write-output-file', async (_event, filePath, data) => {
   const resolvedPath = path.resolve(String(filePath));
   await fs.mkdir(path.dirname(resolvedPath), { recursive: true });
@@ -562,6 +661,94 @@ ipcMain.handle('fcp:stage-file', async (_event, fileData, fileName) => {
 ipcMain.handle('fcp:cleanup-staged-file', async (_event, filePath) => {
   await fs.rm(String(filePath), { force: true });
   return true;
+});
+ipcMain.handle('fcp:extract-archive', async (_event, requestedPath, requestedOutputDirectory, requestedFileName) => {
+  const stagingDirectory = path.resolve(app.getPath('temp'), 'fcp-staging');
+  const sourcePath = path.resolve(String(requestedPath || ''));
+  if (path.dirname(sourcePath) !== stagingDirectory) throw new Error('Invalid staged archive path.');
+
+  let outputDirectory = String(requestedOutputDirectory || '').trim();
+  if (!outputDirectory) {
+    const result = await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'] });
+    if (result.canceled || !result.filePaths[0]) throw new Error('Archive extraction was cancelled.');
+    outputDirectory = result.filePaths[0];
+  }
+  outputDirectory = path.resolve(outputDirectory);
+  await fs.mkdir(outputDirectory, { recursive: true });
+
+  const runSevenZip = (args) => new Promise((resolve, reject) => {
+    const process = spawn(sevenZipPath, args, { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    let stdout = '';
+    let stderr = '';
+    let stdoutExceededLimit = false;
+    process.stdout.on('data', chunk => {
+      if (stdout.length + chunk.length > 4 * 1024 * 1024) stdoutExceededLimit = true;
+      else stdout += chunk.toString();
+    });
+    process.stderr.on('data', chunk => { if (stderr.length < 1024 * 1024) stderr += chunk.toString(); });
+    process.on('error', reject);
+    process.on('close', code => {
+      if (code !== 0) return reject(new Error(`7-Zip failed with code ${code}: ${(stderr || stdout).trim().slice(-800)}`));
+      if (stdoutExceededLimit) return reject(new Error('Archive listing exceeds the 4 MB safety limit.'));
+      resolve(stdout);
+    });
+  });
+
+  const validateArchive = async archivePath => {
+    const listing = await runSevenZip(['l', '-slt', '-sccUTF-8', archivePath]);
+    const entrySection = String(listing).split(/^-{10,}\r?$/m).slice(1).join('\n');
+    const listingRecords = entrySection.split(/\r?\n\r?\n/);
+    let entryCount = 0;
+    let expandedBytes = 0;
+    for (const record of listingRecords) {
+      const entryPath = record.match(/^Path = (.*)$/m)?.[1];
+      if (!entryPath) continue;
+      entryCount += 1;
+      const normalizedEntryPath = entryPath.replace(/\\/g, '/');
+      const normalizedPath = path.posix.normalize(normalizedEntryPath);
+      if (normalizedPath === '..' || normalizedPath.startsWith('../') || normalizedPath.startsWith('/') || /^[a-z]:/i.test(normalizedPath)) {
+        throw new Error(`Unsafe archive path rejected: ${entryPath}`);
+      }
+      if (/^(?:Symbolic Link|Hard Link) = /m.test(record)) throw new Error(`Archive links are not supported: ${entryPath}`);
+      const entrySize = Number(record.match(/^Size = (\d+)$/m)?.[1] || 0);
+      expandedBytes += entrySize;
+      if (entryCount > 50000) throw new Error('Archive contains more than 50,000 entries.');
+      if (expandedBytes > 100 * 1024 ** 3) throw new Error('Archive expands to more than 100 GB.');
+    }
+  };
+  await validateArchive(sourcePath);
+
+  const archiveFileName = path.basename(String(requestedFileName || sourcePath));
+  const archiveBaseName = archiveFileName.replace(/\.(?:tar\.(?:gz|bz2|xz|lzma)|tgz|tbz|tbz2|txz)$/i, '').replace(/\.[^.]+$/, '')
+    .replace(/[\u0000-\u001f<>:"/\\|?*]/g, '_')
+    .replace(/[. ]+$/g, '') || 'extracted-files';
+  let extractionPath = path.join(outputDirectory, archiveBaseName);
+  for (let suffix = 1; await fs.stat(extractionPath).then(() => true, () => false); suffix += 1) {
+    extractionPath = path.join(outputDirectory, `${archiveBaseName} (${suffix})`);
+  }
+  await fs.mkdir(extractionPath, { recursive: false });
+
+  const containsTarLayer = /\.(?:tar\.(?:gz|bz2|xz|lzma)|tgz|tbz|tbz2|txz)$/i.test(archiveFileName);
+  const intermediateDirectory = path.join(app.getPath('temp'), 'fcp-archive-nested', randomUUID());
+  try {
+    if (containsTarLayer) {
+      await fs.mkdir(intermediateDirectory, { recursive: true });
+      await runSevenZip(['x', '-y', '-bso0', '-bsp0', `-o${intermediateDirectory}`, sourcePath]);
+      const innerArchives = (await fs.readdir(intermediateDirectory)).filter(name => name.toLowerCase().endsWith('.tar'));
+      if (innerArchives.length !== 1) throw new Error('Could not locate the TAR contents inside this compressed archive.');
+      const innerArchivePath = path.join(intermediateDirectory, innerArchives[0]);
+      await validateArchive(innerArchivePath);
+      await runSevenZip(['x', '-y', '-bso0', '-bsp0', `-o${extractionPath}`, innerArchivePath]);
+    } else {
+      await runSevenZip(['x', '-y', '-bso0', '-bsp0', `-o${extractionPath}`, sourcePath]);
+    }
+    return extractionPath;
+  } catch (error) {
+    await fs.rm(extractionPath, { recursive: true, force: true });
+    throw error;
+  } finally {
+    await fs.rm(intermediateDirectory, { recursive: true, force: true });
+  }
 });
 ipcMain.handle('fcp:delete-source-file', async (_event, filePath) => {
   const sourcePath = path.resolve(String(filePath));
@@ -694,12 +881,20 @@ ipcMain.handle('fcp:save-file', async (_event, options) => {
   if (saveOptions.outputDirectory) {
     filePath = path.join(saveOptions.outputDirectory, fileName);
   } else {
-    const result = await dialog.showSaveDialog({ ...saveOptions, defaultPath: fileName });
+    const dialogOptions = { ...saveOptions, defaultPath: fileName };
+    delete dialogOptions.data;
+    delete dialogOptions.filePath;
+    delete dialogOptions.outputDirectory;
+    const result = await dialog.showSaveDialog(dialogOptions);
     if (result.canceled) return null;
     filePath = result.filePath;
   }
 
-  if (data !== undefined) {
+  if (saveOptions.filePath) {
+    const sourcePath = resolveTempZipPath(saveOptions.filePath);
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    await fs.copyFile(sourcePath, filePath);
+  } else if (data !== undefined) {
     await fs.mkdir(path.dirname(filePath), { recursive: true });
     await fs.writeFile(filePath, Buffer.from(data));
   }

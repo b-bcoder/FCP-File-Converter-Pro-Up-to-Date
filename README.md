@@ -1,6 +1,6 @@
 # File Converter Pro (FCP)
 
-File Converter Pro is a Windows desktop application for fast, local conversion of images, videos, audio, PDF files and 3D models. Conversion and transcription run locally and do not upload your files to an online service. Internet access is only used for the optional GitHub update check.
+File Converter Pro is a Windows desktop application for fast, local conversion of images, videos, audio, Office documents, PDF files and 3D models, plus extraction of common archives. Conversion and transcription run locally and do not upload your files to an online service. Internet access is only used for the optional GitHub update check.
 
 ## Overview
 
@@ -13,12 +13,11 @@ It is built with Electron, React, Vite and FFmpeg, allowing it to handle a wide 
 - Convert images to JPG, PNG, WEBP, HEIC, AVIF, PDF, ICO and SVG
 - Convert videos to MP4, WEBM, WMV and MKV
 - Convert audio to MP3, WAV, FLAC and OGG
-- Convert 3D models between STL, OBJ, FBX, GLTF and GLB
-- Import SketchUp SKP files and convert them to GLB, OBJ or STL
-- Process 3D meshes, vertices, faces, normals, tangents, materials and UV data
-- Triangulate 3D geometry and apply unit scaling, including mm-to-m and m-to-mm conversion
 - Transcribe audio locally to TXT or SRT with the bundled Whisper engine
 - Extract text from PDF files
+- Convert DOCX documents to TXT, HTML or PDF
+- Convert XLSX workbooks to CSV (first worksheet), JSON, TXT or PDF
+- Extract ZIP, 7Z, TAR, GZ/TGZ, BZ2/TBZ, XZ/TXZ, LZMA and CAB archives
 - Merge multiple images into a single PDF
 - Process files and folders in batches
 - Choose a local output folder for converted files
@@ -46,34 +45,16 @@ It is built with Electron, React, Vite and FFmpeg, allowing it to handle a wide 
 - Vite
 - TypeScript
 - FFmpeg
-- Three.js 3D loaders and exporters
-- OpenSKP for SketchUp SKP parsing and export
 - Sharp
 - PDF.js
 - jsPDF
+- Mammoth
+- ExcelJS
+- 7-Zip
 - zip.js
 - AES-256-GCM
 - Argon2id
 - Node.js crypto APIs
-
-### 3D conversion engine
-
-FCP uses Three.js as the core 3D conversion engine. Its format-specific loaders
-and exporters handle STL, OBJ, FBX, GLTF and GLB files. During conversion, FCP
-can process mesh geometry, vertices, faces, normals, tangents, materials and UV
-data, triangulate geometry and apply unit scaling.
-
-SketchUp `.skp` files use the OpenSKP parser. OpenSKP reads the SketchUp scene
-and exports it to GLB, OBJ or STL. SKP is currently supported as an input
-format; FCP does not write new SKP files.
-
-### Local processing and security
-
-Conversion and transcription run locally in the Electron application. The
-renderer uses an isolated preload bridge instead of direct Node.js access.
-Normal conversion does not upload source files to a cloud service. ZIP files
-can be protected with AES-256 encryption, while vault contents use AES-256-GCM
-with Argon2id-based key derivation. The vault password is not stored by FCP.
 
 ## System requirements
 
@@ -166,6 +147,8 @@ When an output folder is configured, individual downloads and ZIP archives are s
 The optional source-file deletion setting is disabled by default. When enabled, files are first copied to temporary local storage and are deleted from their original location only after the converted output has been written successfully. This action cannot be undone and requires confirmation before each conversion run.
 
 During conversion, the app creates temporary batch folders in `%LOCALAPPDATA%\Temp\fcp-batches\<batch-name>` and stages input files in `%LOCALAPPDATA%\Temp\fcp-staging`. These temporary files are used as local processing backups and are cleaned up automatically after the run finishes.
+
+DOCX text can be exported as plain text, basic HTML or a text-based PDF. XLSX exports preserve worksheet names and cell text; CSV export contains the first worksheet only, and workbooks are limited to 1,000,000 cells per conversion. Archive extraction creates a new subfolder for each archive. Archives containing unsafe paths or links, more than 50,000 entries, a listing larger than 4 MB, or more than 100 GB of expanded data are rejected.
 
 Conversions can also run without an output folder. In that case, source files are not deleted automatically, even if the deletion setting is enabled.
 
