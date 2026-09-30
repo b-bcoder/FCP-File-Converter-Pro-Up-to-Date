@@ -1,215 +1,245 @@
 # File Converter Pro (FCP)
 
-File Converter Pro is a Windows desktop application for fast, local conversion of images, videos, audio, Office documents, PDF files and 3D models, plus extraction of common archives. Conversion and transcription run locally and do not upload your files to an online service. Internet access is only used for the optional GitHub update check.
+**File Converter Pro** is a program for Windows that allows you to convert, edit, and process a wide variety of files locally on your own computer.
 
-## Overview
+Your files are **never sent to any online service**. All conversions and transcriptions happen directly and privately on your machine.
 
-FCP is designed for fast local file conversion with support for batch processing, file and folder conversion, and output packaging in ZIP archives.
+FCP can process images, videos, audio, PDFs, Office documents, 3D models, archives, and much more.
 
-It is built with Electron, React, Vite and FFmpeg, allowing it to handle a wide range of media conversion tasks without requiring a cloud backend.
+An internet connection is only required if you choose to check whether a new version of FCP is available.
 
-## Features
+## What can you do with FCP?
 
-- Convert images to JPG, PNG, WEBP, HEIC, AVIF, PDF, ICO and SVG
-- Convert videos to MP4, WEBM, WMV and MKV
-- Convert audio to MP3, WAV, FLAC and OGG
-- Transcribe audio locally to TXT or SRT with the bundled Whisper engine
-- Extract text from PDF files
-- Convert DOCX documents to TXT, HTML or PDF
-- Convert XLSX workbooks to CSV (first worksheet), JSON, TXT or PDF
-- Extract ZIP, 7Z, TAR, GZ/TGZ, BZ2/TBZ, XZ/TXZ, LZMA and CAB archives
-- Merge multiple images into a single PDF
-- Process files and folders in batches
-- Choose a local output folder for converted files
-- Optionally turn the output folder into an encrypted vault
-- Store ZIP exports in the vault and open, export or delete them from inside the app
-- Retry failed conversions individually or as a group
-- Show native FFmpeg conversion progress and estimated remaining time
-- Stage input files in temporary local storage during conversion
-- Optionally delete source files only after successful output
-- Save individual downloads and ZIP archives directly to the configured output folder
-- Check the current FCP GitHub Releases page for available Windows updates
-- Download results as ZIP archives
-- Protect ZIP archives with AES-256 encryption
-- Protect vault contents with AES-256-GCM and Argon2id-based key derivation
-- Set a custom background image for the app interface
-- Multilingual interface and first-run guide
-- Light and dark mode
-- Borderless fullscreen support with F11
-- Dedicated GPU detection and native FFmpeg integration
+### 🖼️ Images
 
-## Technologies & security
+Convert images to popular formats, including:
 
-- Electron
-- React
-- Vite
-- TypeScript
-- FFmpeg
-- Sharp
-- PDF.js
-- jsPDF
-- Mammoth
-- ExcelJS
-- 7-Zip
-- zip.js
-- AES-256-GCM
-- Argon2id
-- Node.js crypto APIs
+* JPG
+* PNG
+* WEBP
+* HEIC
+* AVIF
+* PDF
+* ICO
+* SVG
 
-## System requirements
+You can also merge multiple images together into a single PDF document.
 
-FCP is a local desktop app that performs conversion and transcription directly on your machine. Heavy workloads such as batch conversion, video transcoding and Whisper transcription can use a lot of CPU, RAM and temporary disk space.
+### 🎬 Video
+
+Convert videos to:
+
+* MP4
+* WEBM
+* WMV
+* MKV
+
+During conversion, you can monitor live progress and an estimated remaining time (ETA).
+
+### 🎵 Audio
+
+Convert audio files to:
+
+* MP3
+* WAV
+* FLAC
+* OGG
+
+You can also transcribe spoken audio locally into text.
+
+Available output formats:
+
+* TXT (plain text transcript)
+* SRT (timestamped subtitles)
+
+### 📄 PDF
+
+FCP can extract text directly from PDF documents.
+
+### 📝 Word Documents
+
+Convert DOCX files to:
+
+* TXT
+* HTML
+* PDF
+
+### 📊 Excel Spreadsheets
+
+Convert XLSX workbooks to:
+
+* CSV (uses the first sheet)
+* JSON
+* TXT
+* PDF
+
+### 📦 Archives
+
+FCP can extract files from common archive formats, including:
+
+* ZIP
+* 7Z
+* TAR
+* GZ / TGZ
+* BZ2 / TBZ
+* XZ / TXZ
+* LZMA
+* CAB
+
+FCP validates archives for malicious or unsafe content and refuses archives containing dangerous file paths, unsafe links, or an excessive number of files (zip-bomb protection).
+
+### 🗂️ Batch Processing & Folders
+
+You don't have to convert files one by one.
+
+FCP supports:
+
+* Multiple files at once
+* Entire folders
+* Large batches
+* Retrying failed conversions
+* Exporting results packaged as ZIP archives
+
+You can easily select your own custom output folder.
+
+## 🔐 Private and Local
+
+FCP was built from the ground up with local processing as its core principle.
+
+Your files are never uploaded to an external server. Conversions and transcriptions take place entirely on your device.
+
+In addition, you can designate a local folder as an **Encrypted Vault**.
+
+The Vault:
+
+* Encrypts stored files using AES-256-GCM
+* Obfuscates filenames of stored ZIP files
+* Requires a master password to unlock and access contents
+* Allows you to export or delete files directly from within FCP
+
+**Important note:** Passwords are never saved by FCP. If you forget your master password, files stored inside the vault cannot be recovered.
+
+## 💾 Useful Features
+
+FCP includes:
+
+* Custom output directory selection
+* Simultaneous batch processing of files and folders
+* Retry actions for individual or all failed jobs
+* Real-time progress and remaining time estimates
+* ZIP export for completed conversions
+* Optional AES-256 password protection for ZIP files
+* Optional automatic deletion of source files after successful conversion
+* Custom background wallpaper support
+* Dark and light themes
+* Borderless fullscreen toggle with `F11`
+* Multilingual user interface
+* Interactive first-run onboarding guide
+
+### Keeping Source Files Safe
+
+If you enable the option to automatically delete source files after conversion, files are first safely staged.
+
+The original file is only removed after the new output file has been successfully verified.
+
+This setting is disabled by default and requires explicit confirmation before conversion begins.
+
+## 🌍 Languages
+
+FCP comes with a multilingual interface and localized guides.
+
+Available languages include:
+
+* 🇳🇱 Dutch
+* 🇬🇧 English
+* 🇩🇪 German
+* 🇫🇷 French
+* 🇹🇷 Turkish
+* 🇨🇳 Chinese
+* 🇯🇵 Japanese
+
+## 💻 System Requirements
+
+FCP is a native, local application. Large batches, video encoding, and transcribing long audio files can utilize significant CPU, RAM, and disk storage.
 
 ### Minimum
 
-- Windows 10 or newer (64-bit)
-- 8 GB RAM
-- 4-core / 8-thread CPU or better
-- SSD or HDD with enough free space for temporary files and converted output
-- Dedicated GPU optional, but recommended for smoother video conversion
+* Windows 10 or newer (64-bit)
+* 8 GB RAM
+* 4-core / 8-thread CPU or equivalent
+* SSD or HDD with sufficient free space for temporary cache and output
+* A dedicated graphics card is not required, but can accelerate video conversions
 
 ### Recommended
 
-- Windows 11 (64-bit)
-- 16 GB RAM or more
-- 8-core / 16-thread CPU or better, such as a modern Ryzen 7/9 or Intel i7/i9
-- NVMe SSD preferred for faster temporary file handling and output
-- Dedicated GPU recommended for accelerated video processing and better overall responsiveness
+* Windows 11 (64-bit)
+* 16 GB RAM or more
+* 8-core / 16-thread modern CPU (e.g., AMD Ryzen 7/9 or Intel Core i7/i9)
+* NVMe SSD for fast temporary file read/write speeds
+* Dedicated GPU for hardware-accelerated video encoding
 
-> Note: high CPU usage during conversion is normal. FCP uses native FFmpeg and the bundled Whisper engine locally, so modern multi-core CPUs can be fully utilized while processing large media files or long audio transcriptions.
+> **Note:** During heavy conversion batches, elevated CPU usage is normal. Large files, large batches, and long audio transcriptions will actively utilize system resources.
 
-## Installation (for the devs)
+## 📥 Developer Setup
 
-Before running the project, install Node.js on your machine. The app uses npm scripts, so Node.js is required for the commands below.
+Want to build or customize FCP yourself? You will need Node.js.
 
-1. Download and install Node.js from: [https://nodejs.org/](https://nodejs.org/).
-2. Open a terminal in the project folder.
+1. Download and install Node.js from [nodejs.org](https://nodejs.org/).
+2. Open a terminal in the project directory.
 3. Install dependencies:
 
 ```bash
 npm install
 ```
 
-4. Start the app in development mode:
+4. Start FCP in development mode:
 
 ```bash
 npm run dev
 ```
 
-5. To build the project and generate the Windows installer locally:
+5. Package the Windows installer:
 
 ```bash
 npm run dist
 ```
 
-The generated installer is written to the `release/` folder. It includes Whisper, its runtime files and the base English model, so end users do not need MSYS2, a separate Whisper installation or internet access for transcription.
+The compiled installer will be saved in the `release/` folder.
 
-### Download the Windows app
+## 📥 Downloading FCP
 
-End users do not need Node.js or the project source code. Download the latest Windows installer from the [FCP GitHub Releases]([https://github.com/uihorsewolf-design/FCP-File-Converter-Pro-Up-to-Date/releases](https://github.com/b-bcoder/FCP-File-Converter-Pro-Up-to-Date/releases) page and run the `.exe` installer.
+End users do not need Node.js or the source code.
 
-### Build from source
+Simply download the latest Windows installer from the [FCP GitHub Releases](https://github.com/b-bcoder/FCP-File-Converter-Pro-Up-to-Date/releases) page and run the `.exe` setup wizard.
 
-Developers can easily install the dependencies and create a new Windows installer locally using `npm run dist`. The installer comes with Whisper's runtime files and the base English model. The development build uses native FFmpeg through ffmpeg-static, so there’s no need for any external dependencies.
+## 🛠️ Building FCP Yourself
 
-### Windows file locations
+Developers can clone the source code, install the required packages, and package a new Windows build using:
 
-After installation, FCP uses these local Windows locations:
-
-- Update files and downloaded update data: `%LOCALAPPDATA%\bestandsconverter-updater`
-- Installed application files: `%LOCALAPPDATA%\Programs\bestandsconverter`
-- Application settings and user data: `%APPDATA%\bestandsconverter`
-
-For a Windows account named `username`, these paths expand to:
-
-```text
-C:\Users\username\AppData\Local\bestandsconverter-updater
-C:\Users\username\AppData\Local\Programs\bestandsconverter
-C:\Users\username\AppData\Roaming\bestandsconverter
+```bash
+npm run dist
 ```
 
-These locations are separate from the output folder selected in FCP Settings and from the temporary conversion folders under `%LOCALAPPDATA%\Temp`.
+## 📁 Where Are Files Stored?
 
-## Usage
+FCP uses several local Windows directories for settings, application updates, and temporary processing cache.
 
-- Start the app from the desktop shortcut or installed executable.
-- Select the source files or folders.
-- Choose the desired output format.
-- Optionally choose an output folder in Settings.
-- Optionally enable `Set output folder as vault` in Settings. Choose a vault password of at least 10 characters and a quota.
-- Start the conversion and monitor the per-file progress and estimated remaining time.
-- Download individual results or package successful results in a ZIP archive. When the vault is enabled, choose between the output folder and the vault.
-- Open the vault from Settings to list stored ZIP files, export them to a normal location, or delete them.
-- Retry individual failed conversions or all failed conversions.
+These are separate from your chosen output destination folder.
 
-When an output folder is configured, individual downloads and ZIP archives are saved there automatically without opening a Windows save dialog. Without an output folder, Windows asks where each download should be saved.
+Temporary cache files are automatically cleaned up after successful completion.
 
-The optional source-file deletion setting is disabled by default. When enabled, files are first copied to temporary local storage and are deleted from their original location only after the converted output has been written successfully. This action cannot be undone and requires confirmation before each conversion run.
+## 📖 Documentation
 
-During conversion, the app creates temporary batch folders in `%LOCALAPPDATA%\Temp\fcp-batches\<batch-name>` and stages input files in `%LOCALAPPDATA%\Temp\fcp-staging`. These temporary files are used as local processing backups and are cleaned up automatically after the run finishes.
+Additional manuals and localized documentation are available under:
 
-DOCX text can be exported as plain text, basic HTML or a text-based PDF. XLSX exports preserve worksheet names and cell text; CSV export contains the first worksheet only, and workbooks are limited to 1,000,000 cells per conversion. Archive extraction creates a new subfolder for each archive. Archives containing unsafe paths or links, more than 50,000 entries, a listing larger than 4 MB, or more than 100 GB of expanded data are rejected.
+**`README Files & Short Guides`**
 
-Conversions can also run without an output folder. In that case, source files are not deleted automatically, even if the deletion setting is enabled.
+## 👨‍💻 Author
 
-The app checks the [FCP GitHub Releases](https://github.com/uihorsewolf-design/FCP-File-Converter-Pro-Up-to-Date/releases) page for a newer Windows installer when an internet connection is available. Updates are never downloaded or installed without user confirmation.
+**B&B Coder**
 
-### Encrypted vault
+## 📜 License
 
-The vault stores each ZIP as an encrypted `.fcpv` container in a hidden `.fcp-vault` folder under the configured output path. File contents and new ZIP filenames are encrypted with AES-256-GCM. The vault key is derived from the password with Argon2id. Windows Explorer can see the container files but cannot read or decrypt them.
+This project is distributed under the terms of the project's license.
 
-To use it, choose an output folder in Settings, enable `Set output folder as vault`, set a password of at least 10 characters and choose the maximum quota. Use `Open vault` in Settings to unlock the vault. From there, stored ZIP files can be exported or deleted. Removing the output folder disables the vault configuration; it does not delete existing vault data.
-
-The password is never saved by the app. Losing the password means the encrypted files cannot be recovered. The quota limits vault contents but does not pre-allocate free disk space in Windows Explorer.
-
-For audio transcription, add an audio file, choose `TXT` or `SRT`, and select `Convert All`. WAV input is automatically normalized before Whisper processes it.
-
-## Project structure
-
-```text
-.
-├── App.tsx
-├── index.tsx
-├── index.html
-├── package.json
-├── tsconfig.json
-├── vite.config.ts
-├── metadata.json
-├── i18n.ts
-├── types.ts
-├── preload.js
-├── electron-main.cjs
-├── services/
-│   └── fileConverter.ts
-├── README Files & Short Guides/
-│   ├── README (Deutsch).md
-│   ├── README (English).md
-│   ├── README (Francais).md
-│   ├── README (Nederlands).md
-│   ├── README (Turkce).md
-│   ├── README (中文).md
-│   ├── README (日本語).md
-│   ├── Short Guide (Deutsch).md
-│   ├── Short Guide (English).md
-│   ├── Short Guide (Francais).md
-│   ├── Short Guide (Nederlands).md
-│   ├── Short Guide (Turkce).md
-│   ├── Short Guide (中文).md
-│   └── Short Guide (日本語).md
-└── assets/
-    └── icon.ico
-
-
-## Documentation
-
-Additional localized documentation is available in the folder:
-
-- [README Files & Short Guides](README%20Files%20%26%20Short%20Guides)
-
-## Author
-
-B&B Coder
-
-## License
-
-This project is distributed under its project-specific licensing terms. Please review the package and release documentation before distributing or reusing the software.
+Please refer to the project and release documentation for usage and distribution terms.
