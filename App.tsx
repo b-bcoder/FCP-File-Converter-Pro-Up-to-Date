@@ -3,7 +3,7 @@ import { ConversionTarget, FileStatus, ConversionFile } from './types';
 import { convertAudioToText, convertImage, convertMedia, convertPdfToText } from './services/fileConverter';
 import { convertModel, getModelFormat, is3DModel, ModelFormat } from './services/modelConverter';
 import { getOfficeFormats, isOfficeDocument } from './services/fileFormats';
-import { t } from './i18n';
+import { t, translations } from './i18n';
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import coreURL from '@ffmpeg/core?url';
 import wasmURL from '@ffmpeg/core/wasm?url';
@@ -44,6 +44,99 @@ const getMediaType = (file: File) => {
 
 // Helper to check if a file is supported
 const isSupportedMedia = (file: File): boolean => getMediaType(file).isSupported;
+
+const getDraggedFiles = (dataTransfer: DataTransfer): File[] => {
+  const itemFiles = Array.from(dataTransfer.items)
+    .filter(item => item.kind === 'file')
+    .map(item => item.getAsFile())
+    .filter((file): file is File => file !== null);
+  return itemFiles.length > 0 ? itemFiles : Array.from(dataTransfer.files);
+};
+
+type ConversionCategory = 'image' | 'video' | 'audio' | 'pdf' | 'office' | 'archive' | 'model';
+
+const getConversionCategory = (file: File): ConversionCategory | null => {
+  const mediaType = getMediaType(file);
+  if (mediaType.isImage) return 'image';
+  if (mediaType.isVideo) return 'video';
+  if (mediaType.isAudio) return 'audio';
+  if (mediaType.isPdf) return 'pdf';
+  if (mediaType.isOffice) return 'office';
+  if (mediaType.isArchive) return 'archive';
+  if (mediaType.isModel) return 'model';
+  return null;
+};
+
+const getAvailableFormats = (file: File): ConversionTarget[] => {
+  const category = getConversionCategory(file);
+  if (category === 'image') return [ConversionTarget.JPG, ConversionTarget.PNG, ConversionTarget.WEBP, ConversionTarget.HEIC, ConversionTarget.AVIF, ConversionTarget.PDF, ConversionTarget.ICO, ConversionTarget.SVG];
+  if (category === 'video') return [ConversionTarget.MP4, ConversionTarget.WEBM, ConversionTarget.WMV, ConversionTarget.MKV, ConversionTarget.MP3, ConversionTarget.WAV, ConversionTarget.FLAC, ConversionTarget.OGG];
+  if (category === 'audio') return [ConversionTarget.MP3, ConversionTarget.WAV, ConversionTarget.FLAC, ConversionTarget.OGG, ConversionTarget.TXT, ConversionTarget.SRT];
+  if (category === 'pdf') return [ConversionTarget.TXT];
+  if (category === 'office') return getOfficeFormats(file.name);
+  if (category === 'archive') return [ConversionTarget.EXTRACT];
+  if (category === 'model') return getModelFormat(file.name) === 'SKP'
+    ? [ConversionTarget.STL, ConversionTarget.OBJ, ConversionTarget.GLB]
+    : [ConversionTarget.STL, ConversionTarget.OBJ, ConversionTarget.GLTF, ConversionTarget.GLB];
+  return [];
+};
+
+const getSourceExtension = (file: File): string => file.name.split('.').pop()?.toLowerCase() || '';
+const sourceExtensionsByTarget: Partial<Record<ConversionTarget, string[]>> = {
+  [ConversionTarget.JPG]: ['jpg', 'jpeg'],
+  [ConversionTarget.WEBP]: ['webp'],
+  [ConversionTarget.HEIC]: ['heic'],
+  [ConversionTarget.AVIF]: ['avif'],
+  [ConversionTarget.PDF]: ['pdf'],
+  [ConversionTarget.PNG]: ['png'],
+  [ConversionTarget.ICO]: ['ico'],
+  [ConversionTarget.SVG]: ['svg'],
+  [ConversionTarget.MP4]: ['mp4'],
+  [ConversionTarget.WEBM]: ['webm'],
+  [ConversionTarget.WMV]: ['wmv'],
+  [ConversionTarget.MKV]: ['mkv'],
+  [ConversionTarget.MP3]: ['mp3'],
+  [ConversionTarget.WAV]: ['wav'],
+  [ConversionTarget.FLAC]: ['flac'],
+  [ConversionTarget.OGG]: ['ogg'],
+  [ConversionTarget.TXT]: ['txt'],
+  [ConversionTarget.SRT]: ['srt'],
+  [ConversionTarget.STL]: ['stl'],
+  [ConversionTarget.OBJ]: ['obj'],
+  [ConversionTarget.GLTF]: ['gltf'],
+  [ConversionTarget.GLB]: ['glb'],
+};
+const isSameSourceFormat = (file: File, targetFormat: ConversionTarget): boolean =>
+  (sourceExtensionsByTarget[targetFormat] || []).includes(getSourceExtension(file));
+
+const dropZoneFormatGroups: { category: ConversionCategory; formats: ConversionTarget[] }[] = [
+  { category: 'image', formats: [ConversionTarget.JPG, ConversionTarget.PNG, ConversionTarget.WEBP, ConversionTarget.HEIC, ConversionTarget.AVIF, ConversionTarget.PDF, ConversionTarget.ICO, ConversionTarget.SVG] },
+  { category: 'video', formats: [ConversionTarget.MP4, ConversionTarget.WEBM, ConversionTarget.WMV, ConversionTarget.MKV, ConversionTarget.MP3, ConversionTarget.WAV, ConversionTarget.FLAC, ConversionTarget.OGG] },
+  { category: 'audio', formats: [ConversionTarget.MP3, ConversionTarget.WAV, ConversionTarget.FLAC, ConversionTarget.OGG, ConversionTarget.TXT, ConversionTarget.SRT] },
+  { category: 'pdf', formats: [ConversionTarget.TXT] },
+  { category: 'office', formats: [ConversionTarget.TXT, ConversionTarget.HTML, ConversionTarget.PDF, ConversionTarget.CSV, ConversionTarget.JSON] },
+  { category: 'archive', formats: [ConversionTarget.EXTRACT] },
+  { category: 'model', formats: [ConversionTarget.STL, ConversionTarget.OBJ, ConversionTarget.GLTF, ConversionTarget.GLB] },
+];
+
+const dropZoneCategoryTranslationKeys: Record<ConversionCategory, keyof typeof translations> = {
+  image: 'conversion_category_image',
+  video: 'conversion_category_video',
+  audio: 'conversion_category_audio',
+  pdf: 'conversion_category_pdf',
+  office: 'conversion_category_office',
+  archive: 'conversion_category_archive',
+  model: 'conversion_category_model',
+};
+
+const getDropZonesForFiles = (files: File[]) => dropZoneFormatGroups.flatMap(group => {
+  const categoryFiles = files.filter(file => getConversionCategory(file) === group.category);
+  if (categoryFiles.length === 0) return [];
+
+  return group.formats
+    .filter(format => categoryFiles.some(file => getAvailableFormats(file).includes(format) && !isSameSourceFormat(file, format)))
+    .map(format => ({ category: group.category, format }));
+});
 
 const createZipFileWriter = (electronApi: any, filePath: string) => {
   const maxChunkBytes = 4 * 1024 * 1024;
@@ -342,6 +435,7 @@ const App: React.FC = () => {
   const [bulkVideoFormat, setBulkVideoFormat] = useState('');
   const [bulkAudioFormat, setBulkAudioFormat] = useState('');
   const [isTraversing, setIsTraversing] = useState(false);
+  const [dragPreviewFiles, setDragPreviewFiles] = useState<File[]>([]);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [isVaultPasswordModalOpen, setIsVaultPasswordModalOpen] = useState(false);
   const [vaultPasswordAction, setVaultPasswordAction] = useState<'save' | 'browse'>('save');
@@ -378,6 +472,7 @@ const App: React.FC = () => {
   const [isStalled, setIsStalled] = useState(false);
   const ffmpegRef = useRef<any>(null);
   const ffmpegLoadingRef = useRef<boolean>(false);
+  const dragPreviewSignatureRef = useRef('');
   const lastProgressAtRef = useRef<number>(Date.now());
   const batchStartedAtRef = useRef<number | null>(null);
   const MAX_CONCURRENT_CONVERSIONS = 4;
@@ -681,21 +776,21 @@ const App: React.FC = () => {
     pendingSourceDeletionsRef.current = [];
   }, [deleteSources, language]);
 
-  const addFiles = useCallback((newFiles: { file: File, relativePath: string }[]) => {
+  const addFiles = useCallback((newFiles: { file: File, relativePath: string }[], targetFormat?: ConversionTarget) => {
     const filesToAdd: ConversionFile[] = newFiles
-    .filter(item => isSupportedMedia(item.file))
+    .filter(item => isSupportedMedia(item.file) && (!targetFormat || (getAvailableFormats(item.file).includes(targetFormat) && !isSameSourceFormat(item.file, targetFormat))))
     .map(item => {
       const { file, relativePath } = item;
       const { isImage, isVideo, isAudio, isPdf, isModel, isOffice, isArchive } = getMediaType(file);
       
-      let defaultFormat: ConversionTarget | null = null;
-      if (isVideo) defaultFormat = ConversionTarget.MP4;
-      else if (isImage) defaultFormat = ConversionTarget.PNG;
-      else if (isAudio) defaultFormat = ConversionTarget.MP3;
-      else if (isPdf) defaultFormat = ConversionTarget.TXT;
-      else if (isOffice) defaultFormat = getOfficeFormats(file.name)[0] ?? null;
-      else if (isArchive) defaultFormat = ConversionTarget.EXTRACT;
-      else if (isModel) {
+      let defaultFormat: ConversionTarget | null = targetFormat || null;
+      if (!defaultFormat && isVideo) defaultFormat = ConversionTarget.MP4;
+      else if (!defaultFormat && isImage) defaultFormat = ConversionTarget.PNG;
+      else if (!defaultFormat && isAudio) defaultFormat = ConversionTarget.MP3;
+      else if (!defaultFormat && isPdf) defaultFormat = ConversionTarget.TXT;
+      else if (!defaultFormat && isOffice) defaultFormat = getOfficeFormats(file.name)[0] ?? null;
+      else if (!defaultFormat && isArchive) defaultFormat = ConversionTarget.EXTRACT;
+      else if (!defaultFormat && isModel) {
         const sourceFormat = getModelFormat(file.name);
         defaultFormat = sourceFormat === 'STL' ? ConversionTarget.OBJ
           : sourceFormat === 'OBJ' ? ConversionTarget.GLB
@@ -1009,9 +1104,21 @@ const App: React.FC = () => {
     setCurrentPage(1);
   };
 
-  const onDrop = useCallback(async (event: React.DragEvent<HTMLDivElement>) => {
+  const onDrop = useCallback(async (event: React.DragEvent<HTMLDivElement>, targetFormat?: ConversionTarget) => {
     event.preventDefault();
     event.stopPropagation();
+    dragPreviewSignatureRef.current = '';
+    setDragPreviewFiles([]);
+
+    const queuedFileId = targetFormat && event.dataTransfer.getData('application/x-fcp-file-id');
+    if (queuedFileId) {
+        const queuedFile = files.find(file => file.id === queuedFileId);
+        if (queuedFile && queuedFile.status === 'pending' && getAvailableFormats(queuedFile.file).includes(targetFormat) && !isSameSourceFormat(queuedFile.file, targetFormat)) {
+            updateFileState(queuedFileId, { targetFormat });
+        }
+        return;
+    }
+
     setIsTraversing(true);
     setShowEncryptionInfo(false);
 
@@ -1041,17 +1148,39 @@ const App: React.FC = () => {
     }
 
     if (droppedFiles.length > 0) {
-        addFiles(droppedFiles);
+        addFiles(droppedFiles, targetFormat);
     }
     setIsTraversing(false);
-  }, [addFiles]);
+  }, [addFiles, files, updateFileState]);
 
   const onDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
-    event.stopPropagation();
+    const supportedFiles = getDraggedFiles(event.dataTransfer).filter(isSupportedMedia);
+    if (supportedFiles.length === 0) return;
+
+    const signature = supportedFiles.map(file => `${file.name}:${file.type}:${file.size}`).join('|');
+    if (signature !== dragPreviewSignatureRef.current) {
+        dragPreviewSignatureRef.current = signature;
+        setDragPreviewFiles(supportedFiles);
+    }
+  }, []);
+
+  const onDragLeave = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    if (event.relatedTarget && event.currentTarget.contains(event.relatedTarget as Node)) return;
+    dragPreviewSignatureRef.current = '';
+    setDragPreviewFiles([]);
   }, []);
 
   const successfulConversions = useMemo(() => files.filter(f => f.status === 'success' && f.convertedFileUrl && f.convertedFileUrl !== '#'), [files]);
+
+  const outputDropZones = useMemo(() => getDropZonesForFiles(
+    files.filter(file => file.status === 'pending').map(file => file.file)
+  ), [files]);
+  const dragPreviewDropZones = useMemo(() => getDropZonesForFiles(dragPreviewFiles), [dragPreviewFiles]);
+  const visibleDropZones = useMemo(() => {
+    const zones = [...outputDropZones, ...dragPreviewDropZones];
+    return zones.filter((zone, index) => zones.findIndex(candidate => candidate.category === zone.category && candidate.format === zone.format) === index);
+  }, [dragPreviewDropZones, outputDropZones]);
 
   const saveDownload = useCallback(async (blob: Blob, fileName: string) => {
     const electronApi = (window as any).electronAPI;
@@ -1328,8 +1457,38 @@ const App: React.FC = () => {
     );
   }
 
+  const renderConversionDropZones = (zones: { category: ConversionCategory; format: ConversionTarget }[]) => (
+    <section className="space-y-4" aria-label="Conversion targets">
+      {dropZoneFormatGroups.filter(group => zones.some(zone => zone.category === group.category)).map(group => (
+        <div key={group.category} className="space-y-2">
+          <h3 className="text-center text-lg font-semibold text-cyan-700 dark:text-cyan-300">
+            {t(dropZoneCategoryTranslationKeys[group.category], language)}
+          </h3>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            {zones.filter(zone => zone.category === group.category).map(zone => (
+              <div
+                key={`${zone.category}-${zone.format}`}
+                onDrop={event => void onDrop(event, zone.format)}
+                onDragOver={onDragOver}
+                role="group"
+                aria-label={`${t('drop_to_convert', language)} ${zone.format}`}
+                className="flex min-h-28 cursor-copy flex-col items-center justify-center rounded-lg border border-cyan-950 bg-cyan-800 px-3 py-5 text-center text-white transition hover:bg-cyan-700 dark:border-cyan-950 dark:bg-cyan-800 dark:hover:bg-cyan-700"
+              >
+                <span className="text-sm font-medium">{t('drop_to_convert', language)}</span>
+                <span className="text-xl font-semibold">{zone.format === ConversionTarget.EXTRACT ? t('extract_archive', language) : zone.format}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </section>
+  );
+
   return (
     <div
+      onDrop={event => void onDrop(event)}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
       className="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-white h-screen overflow-y-auto flex flex-col items-center p-4 transition-colors duration-300 bg-cover bg-center bg-fixed overscroll-none"
       style={wallpaper.enabled && wallpaper.dataUrl ? { backgroundImage: `url(${wallpaper.dataUrl})` } : undefined}
     >
@@ -1422,9 +1581,13 @@ const App: React.FC = () => {
             </div>
           </div>
         ) : files.length === 0 ? (
-          <UploadArea />
+          <div className="space-y-6">
+            {dragPreviewDropZones.length > 0 && renderConversionDropZones(dragPreviewDropZones)}
+            <UploadArea />
+          </div>
         ) : (
           <div className="space-y-6">
+            {visibleDropZones.length > 0 && renderConversionDropZones(visibleDropZones)}
             <div className="flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0">
               <h2 className="text-2xl font-bold text-cyan-600 dark:text-cyan-400">{t('queue_title', language)} ({files.length})</h2>
               <div className="flex flex-wrap gap-2 justify-end">
@@ -1708,21 +1871,18 @@ const FileItem = memo<FileItemProps>(({ fileItem, isConverting, updateFileState,
   const { isImage, isVideo, isAudio, isPdf, isModel, isOffice, isArchive } = getMediaType(file);
   const isProcessing = status === 'reading' || status === 'converting';
 
-  const availableFormats = useMemo(() => {
-    if (isImage) return [ConversionTarget.JPG, ConversionTarget.PNG, ConversionTarget.WEBP, ConversionTarget.HEIC, ConversionTarget.AVIF, ConversionTarget.PDF, ConversionTarget.ICO, ConversionTarget.SVG];
-    if (isVideo) return [ConversionTarget.MP4, ConversionTarget.WEBM, ConversionTarget.WMV, ConversionTarget.MKV, ConversionTarget.MP3, ConversionTarget.WAV, ConversionTarget.FLAC, ConversionTarget.OGG];
-    if (isAudio) return [ConversionTarget.MP3, ConversionTarget.WAV, ConversionTarget.FLAC, ConversionTarget.OGG, ConversionTarget.TXT, ConversionTarget.SRT];
-    if (isPdf) return [ConversionTarget.TXT, ConversionTarget.SRT];
-    if (isOffice) return getOfficeFormats(file.name);
-    if (isArchive) return [ConversionTarget.EXTRACT];
-    if (isModel) return getModelFormat(file.name) === 'SKP'
-      ? [ConversionTarget.STL, ConversionTarget.OBJ, ConversionTarget.GLB]
-      : [ConversionTarget.STL, ConversionTarget.OBJ, ConversionTarget.GLTF, ConversionTarget.GLB];
-    return [];
-  }, [isImage, isVideo, isAudio, isPdf, isModel, isOffice, isArchive, file.name]);
+  const availableFormats = getAvailableFormats(file);
 
   return (
-    <div className="bg-gray-200 dark:bg-gray-700/50 p-4 rounded-lg space-y-3">
+    <div
+      draggable={status === 'pending'}
+      onDragStart={event => {
+        if (status !== 'pending') return;
+        event.dataTransfer.setData('application/x-fcp-file-id', id);
+        event.dataTransfer.effectAllowed = 'move';
+      }}
+      className={`bg-gray-200 dark:bg-gray-700/50 p-4 rounded-lg space-y-3 ${status === 'pending' ? 'cursor-grab active:cursor-grabbing' : ''}`}
+    >
       <div className="flex justify-between items-start">
         <div className="flex items-center space-x-3 overflow-hidden">
           <FileIcon type={file.type} name={file.name} />

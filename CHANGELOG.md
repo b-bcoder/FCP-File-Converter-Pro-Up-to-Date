@@ -6,6 +6,17 @@ This project uses the structure of [Keep a Changelog](https://keepachangelog.com
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-10-02
+
+### Added
+
+- Added file-type-aware conversion drop zones for supported files
+- Added drag-and-drop from the conversion queue and direct file drops onto a target format
+
+### Changed
+
+- Conversion targets now reflect the detected file category and omit source-equivalent formats when no pending file needs them
+
 ## [1.2.0] - 2026-09-27
 
 ### Added

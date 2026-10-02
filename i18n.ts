@@ -83,6 +83,30 @@ export const translations = {
   drop_files_here: {
     en: "Drag & drop your files or folders here", nl: "Sleep uw bestanden of mappen hierheen", tr: "Dosyalarınızı veya klasörlerinizi buraya sürükleyip bırakın", zh: "将您的文件或文件夹拖放到此处", ja: "ファイルまたはフォルダーをここにドラッグ＆ドロップしてください", fr: "Glissez-déposez vos fichiers ou dossiers ici", de: "Ziehen Sie Ihre Dateien oder Ordner hierher",
   },
+  drop_to_convert: {
+    en: "Drop here to convert to", nl: "Sleep hierheen om te converteren naar", tr: "Şuna dönüştürmek için buraya bırakın", zh: "拖放到此处以转换为", ja: "ここにドロップして変換", fr: "Déposez ici pour convertir en", de: "Hier ablegen, um zu konvertieren nach",
+  },
+  conversion_category_image: {
+    en: "Image conversion", nl: "Afbeeldingconversie", tr: "Görsel dönüştürme", zh: "图像转换", ja: "画像変換", fr: "Conversion d’image", de: "Bildkonvertierung",
+  },
+  conversion_category_video: {
+    en: "Video conversion", nl: "Videoconversie", tr: "Video dönüştürme", zh: "视频转换", ja: "動画変換", fr: "Conversion vidéo", de: "Videokonvertierung",
+  },
+  conversion_category_audio: {
+    en: "Audio conversion", nl: "Audioconversie", tr: "Ses dönüştürme", zh: "音频转换", ja: "音声変換", fr: "Conversion audio", de: "Audiokonvertierung",
+  },
+  conversion_category_pdf: {
+    en: "PDF conversion", nl: "PDF-conversie", tr: "PDF dönüştürme", zh: "PDF 转换", ja: "PDF変換", fr: "Conversion PDF", de: "PDF-Konvertierung",
+  },
+  conversion_category_office: {
+    en: "Document conversion", nl: "Documentconversie", tr: "Belge dönüştürme", zh: "文档转换", ja: "ドキュメント変換", fr: "Conversion de documents", de: "Dokumentkonvertierung",
+  },
+  conversion_category_archive: {
+    en: "Archive extraction", nl: "Archief uitpakken", tr: "Arşivden çıkarma", zh: "解压存档", ja: "アーカイブの展開", fr: "Extraction d’archive", de: "Archiv entpacken",
+  },
+  conversion_category_model: {
+    en: "3D model conversion", nl: "3D-modelconversie", tr: "3D model dönüştürme", zh: "3D 模型转换", ja: "3Dモデル変換", fr: "Conversion de modèles 3D", de: "3D-Modellkonvertierung",
+  },
   or: {
     en: "or", nl: "of", tr: "veya", zh: "或者", ja: "または", fr: "ou", de: "oder",
   },
