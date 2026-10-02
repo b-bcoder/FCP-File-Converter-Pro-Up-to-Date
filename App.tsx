@@ -53,6 +53,9 @@ const getDraggedFiles = (dataTransfer: DataTransfer): File[] => {
   return itemFiles.length > 0 ? itemFiles : Array.from(dataTransfer.files);
 };
 
+const isFileDrag = (dataTransfer: DataTransfer): boolean =>
+  Array.from(dataTransfer.types).includes('Files') || Array.from(dataTransfer.items).some(item => item.kind === 'file');
+
 type ConversionCategory = 'image' | 'video' | 'audio' | 'pdf' | 'office' | 'archive' | 'model';
 
 const getConversionCategory = (file: File): ConversionCategory | null => {
@@ -137,6 +140,8 @@ const getDropZonesForFiles = (files: File[]) => dropZoneFormatGroups.flatMap(gro
     .filter(format => categoryFiles.some(file => getAvailableFormats(file).includes(format) && !isSameSourceFormat(file, format)))
     .map(format => ({ category: group.category, format }));
 });
+
+  const allDropZones = dropZoneFormatGroups.flatMap(group => group.formats.map(format => ({ category: group.category, format })));
 
 const createZipFileWriter = (electronApi: any, filePath: string) => {
   const maxChunkBytes = 4 * 1024 * 1024;
@@ -436,6 +441,7 @@ const App: React.FC = () => {
   const [bulkAudioFormat, setBulkAudioFormat] = useState('');
   const [isTraversing, setIsTraversing] = useState(false);
   const [dragPreviewFiles, setDragPreviewFiles] = useState<File[]>([]);
+  const [isDraggingFiles, setIsDraggingFiles] = useState(false);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [isVaultPasswordModalOpen, setIsVaultPasswordModalOpen] = useState(false);
   const [vaultPasswordAction, setVaultPasswordAction] = useState<'save' | 'browse'>('save');
@@ -473,6 +479,7 @@ const App: React.FC = () => {
   const ffmpegRef = useRef<any>(null);
   const ffmpegLoadingRef = useRef<boolean>(false);
   const dragPreviewSignatureRef = useRef('');
+  const dragEnterDepthRef = useRef(0);
   const lastProgressAtRef = useRef<number>(Date.now());
   const batchStartedAtRef = useRef<number | null>(null);
   const MAX_CONCURRENT_CONVERSIONS = 4;
@@ -778,12 +785,13 @@ const App: React.FC = () => {
 
   const addFiles = useCallback((newFiles: { file: File, relativePath: string }[], targetFormat?: ConversionTarget) => {
     const filesToAdd: ConversionFile[] = newFiles
-    .filter(item => isSupportedMedia(item.file) && (!targetFormat || (getAvailableFormats(item.file).includes(targetFormat) && !isSameSourceFormat(item.file, targetFormat))))
+    .filter(item => isSupportedMedia(item.file))
     .map(item => {
       const { file, relativePath } = item;
       const { isImage, isVideo, isAudio, isPdf, isModel, isOffice, isArchive } = getMediaType(file);
-      
-      let defaultFormat: ConversionTarget | null = targetFormat || null;
+
+      const canUseTarget = targetFormat && getAvailableFormats(file).includes(targetFormat) && !isSameSourceFormat(file, targetFormat);
+      let defaultFormat: ConversionTarget | null = canUseTarget ? targetFormat : null;
       if (!defaultFormat && isVideo) defaultFormat = ConversionTarget.MP4;
       else if (!defaultFormat && isImage) defaultFormat = ConversionTarget.PNG;
       else if (!defaultFormat && isAudio) defaultFormat = ConversionTarget.MP3;
@@ -1108,7 +1116,9 @@ const App: React.FC = () => {
     event.preventDefault();
     event.stopPropagation();
     dragPreviewSignatureRef.current = '';
+    dragEnterDepthRef.current = 0;
     setDragPreviewFiles([]);
+    setIsDraggingFiles(false);
 
     const queuedFileId = targetFormat && event.dataTransfer.getData('application/x-fcp-file-id');
     if (queuedFileId) {
@@ -1122,42 +1132,37 @@ const App: React.FC = () => {
     setIsTraversing(true);
     setShowEncryptionInfo(false);
 
+    const fallbackFiles = getDraggedFiles(event.dataTransfer)
+      .filter(isSupportedMedia)
+      .map(file => ({ file, relativePath: file.name }));
     const items = event.dataTransfer.items;
     let droppedFiles: { file: File, relativePath: string }[] = [];
-    
-    if (items && items.length > 0 && (items[0] as any).webkitGetAsEntry) {
-        const promises = Array.from(items).map(item => {
-            const entry = (item as any).webkitGetAsEntry() as FileSystemEntry;
-            if (entry) {
-                return traverseDirectory(entry);
-            }
-            return Promise.resolve([]);
-        });
 
-        try {
+    try {
+      if (items && items.length > 0 && (items[0] as any).webkitGetAsEntry) {
+        const promises = Array.from(items).map(item => {
+          const entry = (item as any).webkitGetAsEntry() as FileSystemEntry;
+          return entry ? traverseDirectory(entry) : Promise.resolve([]);
+        });
             const fileArrays = await Promise.all(promises);
             droppedFiles = fileArrays.flat();
-        } catch (error: any) {
-            console.error("Error processing dropped files:", error);
-            const fallbackFiles = (Array.from(event.dataTransfer.files) as File[]).filter(f => isSupportedMedia(f));
-            droppedFiles = fallbackFiles.map((f: any) => ({ file: f, relativePath: f.name }));
+      } else {
+        droppedFiles = fallbackFiles;
         }
-    } else {
-        const fallbackFiles = (Array.from(event.dataTransfer.files) as File[]).filter(f => isSupportedMedia(f));
-        droppedFiles = fallbackFiles.map((f: any) => ({ file: f, relativePath: f.name }));
-    }
 
-    if (droppedFiles.length > 0) {
-        addFiles(droppedFiles, targetFormat);
+      if (droppedFiles.length === 0) droppedFiles = fallbackFiles;
+      if (droppedFiles.length > 0) addFiles(droppedFiles, targetFormat);
+    } catch (error) {
+      console.error('Error processing dropped files:', error);
+      if (fallbackFiles.length > 0) addFiles(fallbackFiles, targetFormat);
+    } finally {
+      setIsTraversing(false);
     }
-    setIsTraversing(false);
   }, [addFiles, files, updateFileState]);
 
-  const onDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    const supportedFiles = getDraggedFiles(event.dataTransfer).filter(isSupportedMedia);
+  const updateDragPreview = useCallback((dataTransfer: DataTransfer) => {
+    const supportedFiles = getDraggedFiles(dataTransfer).filter(isSupportedMedia);
     if (supportedFiles.length === 0) return;
-
     const signature = supportedFiles.map(file => `${file.name}:${file.type}:${file.size}`).join('|');
     if (signature !== dragPreviewSignatureRef.current) {
         dragPreviewSignatureRef.current = signature;
@@ -1165,11 +1170,29 @@ const App: React.FC = () => {
     }
   }, []);
 
+  const onDragEnter = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    if (!isFileDrag(event.dataTransfer)) return;
+    event.preventDefault();
+    dragEnterDepthRef.current += 1;
+    setIsDraggingFiles(true);
+    updateDragPreview(event.dataTransfer);
+  }, [updateDragPreview]);
+
+  const onDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    if (!isFileDrag(event.dataTransfer)) return;
+    setIsDraggingFiles(true);
+    updateDragPreview(event.dataTransfer);
+  }, [updateDragPreview]);
+
   const onDragLeave = useCallback((event: React.DragEvent<HTMLDivElement>) => {
-    if (event.relatedTarget && event.currentTarget.contains(event.relatedTarget as Node)) return;
+    if (!isDraggingFiles) return;
+    dragEnterDepthRef.current = Math.max(0, dragEnterDepthRef.current - 1);
+    if (dragEnterDepthRef.current > 0) return;
     dragPreviewSignatureRef.current = '';
     setDragPreviewFiles([]);
-  }, []);
+    setIsDraggingFiles(false);
+  }, [isDraggingFiles]);
 
   const successfulConversions = useMemo(() => files.filter(f => f.status === 'success' && f.convertedFileUrl && f.convertedFileUrl !== '#'), [files]);
 
@@ -1177,10 +1200,13 @@ const App: React.FC = () => {
     files.filter(file => file.status === 'pending').map(file => file.file)
   ), [files]);
   const dragPreviewDropZones = useMemo(() => getDropZonesForFiles(dragPreviewFiles), [dragPreviewFiles]);
+  const activeDragDropZones = isDraggingFiles
+    ? (dragPreviewDropZones.length > 0 ? dragPreviewDropZones : allDropZones)
+    : [];
   const visibleDropZones = useMemo(() => {
-    const zones = [...outputDropZones, ...dragPreviewDropZones];
+    const zones = [...outputDropZones, ...activeDragDropZones];
     return zones.filter((zone, index) => zones.findIndex(candidate => candidate.category === zone.category && candidate.format === zone.format) === index);
-  }, [dragPreviewDropZones, outputDropZones]);
+  }, [activeDragDropZones, outputDropZones]);
 
   const saveDownload = useCallback(async (blob: Blob, fileName: string) => {
     const electronApi = (window as any).electronAPI;
@@ -1487,6 +1513,7 @@ const App: React.FC = () => {
   return (
     <div
       onDrop={event => void onDrop(event)}
+      onDragEnter={onDragEnter}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       className="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-white h-screen overflow-y-auto flex flex-col items-center p-4 transition-colors duration-300 bg-cover bg-center bg-fixed overscroll-none"
@@ -1582,7 +1609,7 @@ const App: React.FC = () => {
           </div>
         ) : files.length === 0 ? (
           <div className="space-y-6">
-            {dragPreviewDropZones.length > 0 && renderConversionDropZones(dragPreviewDropZones)}
+            {activeDragDropZones.length > 0 && renderConversionDropZones(activeDragDropZones)}
             <UploadArea />
           </div>
         ) : (
