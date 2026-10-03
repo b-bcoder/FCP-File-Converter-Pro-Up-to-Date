@@ -469,7 +469,8 @@ const App: React.FC = () => {
   const [zipDestination, setZipDestination] = useState<'folder' | 'vault'>('folder');
   const [deleteSources, setDeleteSources] = useState(() => localStorage.getItem('delete-sources') === 'true');
   const pendingSourceDeletionsRef = useRef<string[]>([]);
-  const [wallpaper, setWallpaper] = useState<{ enabled: boolean; path: string | null; dataUrl: string | null }>({ enabled: false, path: null, dataUrl: null });
+  const [wallpaper, setWallpaper] = useState<{ enabled: boolean; path: string | null; type: 'image' | 'video' | null; dataUrl: string | null; videoUrl: string | null }>({ enabled: false, path: null, type: null, dataUrl: null, videoUrl: null });
+  const [wallpaperVideoError, setWallpaperVideoError] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(() => localStorage.getItem('onboarding-complete') !== 'true');
   const [combineToPdf, setCombineToPdf] = useState(false);
   const [gpuToast, setGpuToast] = useState<string | null>(null);
@@ -608,11 +609,13 @@ const App: React.FC = () => {
   const chooseWallpaper = async () => {
     const nextWallpaper = await (window as any).electronAPI.chooseWallpaper();
     setWallpaper(nextWallpaper);
+    setWallpaperVideoError(false);
   };
 
   const disableWallpaper = async () => {
     const nextWallpaper = await (window as any).electronAPI.disableWallpaper();
     setWallpaper(nextWallpaper);
+    setWallpaperVideoError(false);
   };
 
   const chooseOutputDirectory = async () => {
@@ -1024,6 +1027,7 @@ const App: React.FC = () => {
           convertedBlob = await convertOfficeDocument(conversionFile, targetFormat as any, p => updateFileState(id, { progress: p }));
           updateFileState(id, { status: 'converting' });
         } else if (isAudio && (targetFormat === ConversionTarget.TXT || targetFormat === ConversionTarget.SRT)) {
+          updateFileState(id, { status: 'converting', progress: 0, readProgress: 100 });
           convertedBlob = await convertAudioToText(
             conversionFile,
             p => updateFileState(id, { progress: p }),
@@ -1517,8 +1521,20 @@ const App: React.FC = () => {
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       className="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-white h-screen overflow-y-auto flex flex-col items-center p-4 transition-colors duration-300 bg-cover bg-center bg-fixed overscroll-none"
-      style={wallpaper.enabled && wallpaper.dataUrl ? { backgroundImage: `url(${wallpaper.dataUrl})` } : undefined}
+      style={wallpaper.enabled && wallpaper.type === 'image' && wallpaper.dataUrl ? { backgroundImage: `url(${wallpaper.dataUrl})` } : undefined}
     >
+      {wallpaper.enabled && wallpaper.type === 'video' && wallpaper.videoUrl && (
+        <video
+          key={wallpaper.videoUrl}
+          src={wallpaper.videoUrl}
+          autoPlay
+          loop
+          muted
+          playsInline
+          onError={() => setWallpaperVideoError(true)}
+          className="fixed inset-0 z-0 h-full w-full object-cover"
+        />
+      )}
       {showOnboarding && <OnboardingModal language={language} onLanguageChange={setLanguage} onComplete={() => { localStorage.setItem('onboarding-complete', 'true'); setShowOnboarding(false); }} />}
       {availableUpdate && !showOnboarding && <UpdateModal update={availableUpdate} lang={language} onUpdate={installUpdate} onLater={() => setAvailableUpdate(null)} isInstalling={isInstallingUpdate} />}
       {gpuToast && !showOnboarding && (
@@ -1537,7 +1553,7 @@ const App: React.FC = () => {
       {isVaultPasswordModalOpen && <VaultPasswordModal onConfirm={password => { setIsVaultPasswordModalOpen(false); if (vaultPasswordAction === 'browse') unlockVault(password); else createAndDownloadZip(password, 'vault').catch(error => alert(error?.message || 'Opslaan in de kluis is mislukt.')); }} onCancel={() => setIsVaultPasswordModalOpen(false)} />}
       {showEncryptionInfo && <EncryptionInfoAlert onClose={() => setShowEncryptionInfo(false)} lang={language} />}
       <div
-        className="w-full max-w-4xl rounded-lg shadow-xl p-6 sm:p-8 space-y-6 border border-white/20 backdrop-blur-sm transition-all duration-200"
+        className="relative z-10 w-full max-w-4xl rounded-lg shadow-xl p-6 sm:p-8 space-y-6 border border-white/20 backdrop-blur-sm transition-all duration-200"
         style={{
           backgroundColor: theme === 'dark' ? `rgba(31, 41, 55, ${uiTransparency})` : `rgba(255, 255, 255, ${uiTransparency})`,
         }}
@@ -1582,6 +1598,7 @@ const App: React.FC = () => {
               <h3 className="text-lg font-semibold">{t('background', language)}</h3>
               <p className="mt-1 break-all text-sm text-gray-600 dark:text-gray-300">{wallpaper.enabled ? wallpaper.path : t('default_wallpaper', language)}</p>
               <p className="mt-3 rounded-md border border-amber-400/60 bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">{t('wallpaper_notice', language)}</p>
+              {wallpaperVideoError && <p role="alert" className="mt-3 rounded-md border border-red-400/60 bg-red-50 p-3 text-sm text-red-800 dark:bg-red-900/30 dark:text-red-200">{t('wallpaper_video_error', language)}</p>}
               <div className="mt-5 flex flex-wrap gap-3">
                 <button onClick={chooseWallpaper} className="rounded-md bg-cyan-500 px-4 py-2 font-bold text-white hover:bg-cyan-600">{wallpaper.enabled ? t('change_background', language) : t('add_background', language)}</button>
                 <button onClick={disableWallpaper} disabled={!wallpaper.enabled} className="rounded-md bg-gray-500 px-4 py-2 font-bold text-white disabled:opacity-50">{t('turn_background_off', language)}</button>

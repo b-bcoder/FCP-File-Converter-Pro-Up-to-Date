@@ -12,7 +12,7 @@ File Converter Pro is een Windows-desktopapp waarmee je afbeeldingen, video, aud
 - Afbeeldingen converteren naar JPG, PNG, WEBP, HEIC, AVIF, PDF, ICO en SVG
 - Video converteren naar MP4, WEBM, WMV en MKV
 - Audio converteren naar MP3, WAV, FLAC en OGG
-- Audio lokaal transcriberen naar TXT of SRT met Whisper
+- Audio lokaal transcriberen naar TXT of SRT met Whisper, ook in het Nederlands
 - PDF-bestanden naar tekst converteren
 - DOCX-documenten naar TXT, HTML of PDF converteren
 - XLSX-werkmappen naar CSV (alleen het eerste werkblad), JSON, TXT of PDF converteren
@@ -102,7 +102,7 @@ Het wachtwoord wordt nooit opgeslagen. Zonder wachtwoord kunnen versleutelde bes
 3. Kies `Convert All` en wacht tot de transcriptie klaar is.
 4. Download het transcript.
 
-De transcriptie draait lokaal met Whisper, dat in de installer is meegeleverd. MSYS2, een aparte Whisper-installatie of internet is niet nodig. WAV-bestanden worden automatisch genormaliseerd voordat ze worden getranscribeerd.
+De transcriptie draait lokaal met het meertalige Whisper-model, dat Nederlands ondersteunt en de gesproken taal automatisch detecteert. Het model en Whisper zijn in de installer meegeleverd; MSYS2, een aparte Whisper-installatie of internet is niet nodig. WAV-bestanden worden automatisch genormaliseerd voordat ze worden getranscribeerd.
 
 Converteren zonder uitvoermap is toegestaan. Bronbestanden worden alleen automatisch verwijderd als een uitvoermap is ingesteld en het geconverteerde bestand daar succesvol is opgeslagen.
 
@@ -120,7 +120,7 @@ De Electron-menubalk is verborgen. De app start standaard borderless fullscreen.
 
 ## Achtergrond instellen
 
-Klik op het tandwiel naast de light/dark-toggle op de homepagina. Kies `Achtergrond toevoegen` of `Achtergrond wijzigen` en selecteer een afbeelding. Kies `Achtergrond uitzetten` om terug te keren naar de standaardachtergrond. De keuze wordt lokaal opgeslagen in `config.json` en bij iedere start gecontroleerd. Gebruik een afbeelding met dezelfde beeldverhouding als je scherm, anders kan de achtergrond uitrekken.
+Klik op het tandwiel naast de light/dark-toggle op de homepagina. Kies `Achtergrond toevoegen` of `Achtergrond wijzigen` en selecteer een afbeelding of een MP4-/WebM-video. Video's worden gedempt en in een lus afgespeeld. Kies `Achtergrond uitzetten` om terug te keren naar de standaardachtergrond. De keuze wordt lokaal opgeslagen in `config.json` en bij iedere start gecontroleerd. Gebruik een afbeelding met dezelfde beeldverhouding als je scherm, anders kan de achtergrond uitrekken.
 
 ## Eerste start
 

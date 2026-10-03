@@ -6,6 +6,17 @@ This project uses the structure of [Keep a Changelog](https://keepachangelog.com
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-10-03
+
+### Added
+
+- Set a looping, muted MP4 or WebM video as the app background
+- Support Dutch and other languages in local Whisper transcription through the multilingual base model
+
+### Fixed
+
+- Added React type declarations and resolved TypeScript errors reported by `npm run lint`
+
 ## [1.2.1] - 2026-10-02
 
 ### Added

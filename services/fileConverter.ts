@@ -61,11 +61,12 @@ export const convertAudioToText = async (
 ): Promise<Blob> => {
     const electronApi = (window as any).electronAPI;
     if (electronApi?.transcribeAudio) {
-        const fileData = await readFileAsArrayBuffer(file, onProgress);
+        const fileData = await readFileAsArrayBuffer(file);
         const removeProgressListener = electronApi.onTranscriptionProgress?.((progress: number) => {
-            onProgress(10 + Math.round(Math.max(0, Math.min(100, progress)) * 0.9));
+            onProgress(5 + Math.round(Math.max(0, Math.min(100, progress)) * 0.9));
         });
         try {
+            onProgress(5);
             const transcript = await electronApi.transcribeAudio(fileData, file.name, targetFormat);
             onProgress(100);
             return new Blob([transcript], { type: 'text/plain; charset=utf-8' });
@@ -205,13 +206,13 @@ export const convertImage = (
   });
 };
 
-const readFileAsArrayBuffer = async (file: File, onProgress: (progress: number) => void): Promise<ArrayBuffer> => {
+const readFileAsArrayBuffer = async (file: File, onProgress?: (progress: number) => void): Promise<ArrayBuffer> => {
     try {
         // Use arrayBuffer() which is more modern and often more reliable than FileReader
         // We simulate progress since arrayBuffer() doesn't provide it natively
-        onProgress(10);
+        onProgress?.(10);
         const buffer = await file.arrayBuffer();
-        onProgress(100);
+        onProgress?.(100);
         return buffer;
     } catch (err: any) {
         throw new Error(`Failed to read file "${file.name}": ${err.message || 'File might have been moved or deleted.'}`);

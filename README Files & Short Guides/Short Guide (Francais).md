@@ -33,7 +33,7 @@ Vous pouvez également glisser les fichiers dans la fenêtre.
 
 ## Transcription audio
 
-Ajoutez un fichier audio, sélectionnez `TXT` pour du texte ou `SRT` pour des sous-titres, puis cliquez sur `Convert All`. Whisper est inclus dans l'installateur et fonctionne localement ; MSYS2 ou une connexion Internet ne sont pas nécessaires. Les fichiers WAV sont automatiquement normalisés.
+Ajoutez un fichier audio, sélectionnez `TXT` pour du texte ou `SRT` pour des sous-titres, puis cliquez sur `Convert All`. Le modèle Whisper multilingue inclus dans l'installateur prend notamment en charge le néerlandais et détecte automatiquement la langue parlée. La transcription s'effectue localement ; MSYS2 ou une connexion Internet ne sont pas nécessaires. Les fichiers WAV sont automatiquement normalisés.
 
 ## Important
 

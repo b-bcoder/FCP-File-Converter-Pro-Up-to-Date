@@ -12,7 +12,7 @@ File Converter Pro ist eine Windows-Desktop-Anwendung für die schnelle, lokale 
 - Bilder in JPG, PNG, WEBP, HEIC, AVIF, PDF, ICO und SVG konvertieren
 - Videos in MP4, WEBM, WMV und MKV konvertieren
 - Audio in MP3, WAV, FLAC und OGG konvertieren
-- Audio lokal mit Whisper in TXT oder SRT transkribieren
+- Audio lokal mit dem mehrsprachigen Whisper-Modell in TXT oder SRT transkribieren, auch auf Niederländisch
 - Text aus PDF-Dateien extrahieren
 - Mehrere Bilder zu einer PDF-Datei zusammenfassen
 - Dateien und Ordner stapelweise verarbeiten
@@ -115,7 +115,7 @@ Die Electron-Menüleiste ist ausgeblendet. Die App startet im randlosen Vollbild
 
 ## Hintergrund festlegen
 
-Klicken Sie auf der Startseite auf das Zahnradsymbol neben dem Hell-/Dunkel-Schalter. Wählen Sie `Hintergrund hinzufügen` oder `Hintergrund ändern` und wählen Sie ein Bild aus. Mit `Hintergrund ausschalten` kehren Sie zum Standardhintergrund zurück. Die Auswahl wird lokal in `config.json` gespeichert und bei jedem Start überprüft. Verwenden Sie ein Bild mit demselben Seitenverhältnis wie Ihr Bildschirm, da der Hintergrund sonst gestreckt werden kann.
+Klicken Sie auf der Startseite auf das Zahnradsymbol neben dem Hell-/Dunkel-Schalter. Wählen Sie `Hintergrund hinzufügen` oder `Hintergrund ändern` und wählen Sie ein Bild oder ein MP4-/WebM-Video aus. Videos werden stummgeschaltet und in einer Schleife abgespielt. Mit `Hintergrund ausschalten` kehren Sie zum Standardhintergrund zurück. Die Auswahl wird lokal in `config.json` gespeichert und bei jedem Start überprüft. Verwenden Sie ein Bild mit demselben Seitenverhältnis wie Ihr Bildschirm, da der Hintergrund sonst gestreckt werden kann.
 
 ## Erster Start
 

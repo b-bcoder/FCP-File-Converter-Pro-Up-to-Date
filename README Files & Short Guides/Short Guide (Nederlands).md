@@ -31,7 +31,7 @@ Kluisbestanden zijn versleutelde `.fcpv`-containers. Windows Verkenner kan de in
 
 ## Audio transcriberen
 
-Voeg een audiobestand toe, kies `TXT` voor tekst of `SRT` voor ondertitels en klik op `Convert All`. Whisper zit in de installer en draait lokaal; MSYS2 of internet is niet nodig. WAV-bestanden worden automatisch genormaliseerd.
+Voeg een audiobestand toe, kies `TXT` voor tekst of `SRT` voor ondertitels en klik op `Convert All`. Het meertalige Whisper-model in de installer herkent onder andere Nederlands en detecteert de taal automatisch. Alles draait lokaal; MSYS2 of internet is niet nodig. WAV-bestanden worden automatisch genormaliseerd.
 
 ## ⚠️ Belangrijk
 

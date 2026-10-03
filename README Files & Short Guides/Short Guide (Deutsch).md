@@ -33,7 +33,7 @@ Sie können Dateien auch in das Fenster ziehen.
 
 ## Audiotranskription
 
-Fügen Sie eine Audiodatei hinzu, wählen Sie `TXT` für Text oder `SRT` für Untertitel und klicken Sie auf `Convert All`. Whisper ist im Installer enthalten und läuft lokal; MSYS2 oder eine Internetverbindung ist nicht erforderlich. WAV-Dateien werden automatisch normalisiert.
+Fügen Sie eine Audiodatei hinzu, wählen Sie `TXT` für Text oder `SRT` für Untertitel und klicken Sie auf `Convert All`. Das mehrsprachige Whisper-Modell im Installer unterstützt unter anderem Niederländisch und erkennt die gesprochene Sprache automatisch. Die Transkription läuft lokal; MSYS2 oder eine Internetverbindung ist nicht erforderlich. WAV-Dateien werden automatisch normalisiert.
 
 ## Wichtig
 

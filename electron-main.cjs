@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, protocol } = require('electron');
 const fs = require('node:fs/promises');
 const { createReadStream, createWriteStream } = require('node:fs');
 const { Readable, Transform } = require('node:stream');
@@ -10,6 +10,12 @@ const path = require('node:path');
 const os = require('node:os');
 const ffmpegPath = require('ffmpeg-static');
 const { hashRaw } = require('@node-rs/argon2');
+
+protocol.registerSchemesAsPrivileged([{
+  scheme: 'fcp-wallpaper',
+  privileges: { standard: true, secure: true, stream: true }
+}]);
+
 const sevenZipPath = app.isPackaged
   ? require('7zip-bin').path7za.replace('app.asar', 'app.asar.unpacked')
   : require('7zip-bin').path7za;
@@ -26,8 +32,8 @@ const whisperExecutablePath = process.platform === 'win32'
   ? path.join(whisperRuntimePath, 'whisper-cli.exe')
   : path.join(whisperRootPath, 'main');
 const whisperModelPath = process.platform === 'win32'
-  ? path.join(whisperRuntimePath, 'ggml-base.en.bin')
-  : path.join(whisperRootPath, 'models', 'ggml-base.en.bin');
+  ? path.join(whisperRuntimePath, 'ggml-base.bin')
+  : path.join(whisperRootPath, 'models', 'ggml-base.bin');
 const gpuInfo = detectGpu();
 const nativeFfmpegPath = app.isPackaged
   ? ffmpegPath.replace('app.asar', 'app.asar.unpacked')
@@ -444,14 +450,79 @@ async function readWallpaperConfig() {
   try {
     const config = JSON.parse(await fs.readFile(wallpaperConfigPath, 'utf8'));
     const wallpaper = config?.Configurations?.Wallpaper;
-    if (wallpaper?.Wallpaper_on_off !== 'On' || !wallpaper.Wallpaperpath) return { enabled: false, path: null, dataUrl: null };
-    const imageData = await fs.readFile(wallpaper.Wallpaperpath);
+    if (wallpaper?.Wallpaper_on_off !== 'On' || !wallpaper.Wallpaperpath) {
+      return { enabled: false, path: null, type: null, dataUrl: null, videoUrl: null };
+    }
     const extension = path.extname(wallpaper.Wallpaperpath).toLowerCase();
+    if (extension === '.mp4' || extension === '.webm') {
+      return { enabled: true, path: wallpaper.Wallpaperpath, type: 'video', dataUrl: null, videoUrl: 'fcp-wallpaper://wallpaper/background' };
+    }
+    const imageData = await fs.readFile(wallpaper.Wallpaperpath);
     const mimeType = extension === '.png' ? 'image/png' : extension === '.webp' ? 'image/webp' : 'image/jpeg';
-    return { enabled: true, path: wallpaper.Wallpaperpath, dataUrl: `data:${mimeType};base64,${imageData.toString('base64')}` };
+    return { enabled: true, path: wallpaper.Wallpaperpath, type: 'image', dataUrl: `data:${mimeType};base64,${imageData.toString('base64')}`, videoUrl: null };
   } catch {
-    return { enabled: false, path: null, dataUrl: null };
+    return { enabled: false, path: null, type: null, dataUrl: null, videoUrl: null };
   }
+}
+
+function registerWallpaperProtocol() {
+  protocol.handle('fcp-wallpaper', async request => {
+    if (request.method !== 'GET' && request.method !== 'HEAD') {
+      return new Response(null, { status: 405, headers: { Allow: 'GET, HEAD' } });
+    }
+    const url = new URL(request.url);
+    if (url.hostname !== 'wallpaper' || url.pathname !== '/background') {
+      return new Response(null, { status: 404 });
+    }
+
+    try {
+      const config = JSON.parse(await fs.readFile(wallpaperConfigPath, 'utf8'));
+      const wallpaperPath = config?.Configurations?.Wallpaper?.Wallpaperpath;
+      const extension = path.extname(String(wallpaperPath || '')).toLowerCase();
+      if (config?.Configurations?.Wallpaper?.Wallpaper_on_off !== 'On' || !['.mp4', '.webm'].includes(extension)) {
+        return new Response(null, { status: 404 });
+      }
+
+      const { size } = await fs.stat(wallpaperPath);
+      const mimeType = extension === '.webm' ? 'video/webm' : 'video/mp4';
+      const rangeHeader = request.headers.get('range');
+      const headers = new Headers({
+        'Accept-Ranges': 'bytes',
+        'Content-Type': mimeType,
+        'Cache-Control': 'no-store'
+      });
+
+      if (request.method === 'HEAD') {
+        headers.set('Content-Length', String(size));
+        return new Response(null, { status: 200, headers });
+      }
+
+      if (rangeHeader) {
+        const match = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader);
+        if (!match || (!match[1] && !match[2])) {
+          headers.set('Content-Range', `bytes */${size}`);
+          return new Response(null, { status: 416, headers });
+        }
+        const start = match[1] ? Number(match[1]) : Math.max(0, size - Number(match[2]));
+        const end = match[2] && match[1] ? Math.min(Number(match[2]), size - 1) : size - 1;
+        if (start >= size || start > end) {
+          headers.set('Content-Range', `bytes */${size}`);
+          return new Response(null, { status: 416, headers });
+        }
+
+        headers.set('Content-Length', String(end - start + 1));
+        headers.set('Content-Range', `bytes ${start}-${end}/${size}`);
+        const stream = createReadStream(wallpaperPath, { start, end });
+        return new Response(Readable.toWeb(stream), { status: 206, headers });
+      }
+
+      headers.set('Content-Length', String(size));
+      return new Response(Readable.toWeb(createReadStream(wallpaperPath)), { status: 200, headers });
+    } catch (error) {
+      console.error('Failed to serve background video', error);
+      return new Response(null, { status: 404 });
+    }
+  });
 }
 
 async function writeWallpaperConfig(enabled, wallpaperPath = '') {
@@ -518,7 +589,7 @@ ipcMain.handle('fcp:transcribe-audio', async (event, fileData, fileName, targetF
 
   try {
     if (process.platform === 'win32') {
-      const runtimeFiles = ['whisper-cli.exe', 'whisper.dll', 'ggml.dll', 'ggml-base.dll', 'ggml-cpu.dll', 'ggml-base.en.bin'];
+      const runtimeFiles = ['whisper-cli.exe', 'whisper.dll', 'ggml.dll', 'ggml-base.dll', 'ggml-cpu.dll', 'ggml-base.bin'];
       await Promise.all(runtimeFiles.map(fileName => fs.access(path.join(whisperRuntimePath, fileName))));
     }
 
@@ -557,19 +628,22 @@ ipcMain.handle('fcp:transcribe-audio', async (event, fileData, fileName, targetF
       activeConversionProcess = childProcess;
       let stdout = '';
       let stderr = '';
+      let stderrProgressBuffer = '';
       const reportProgress = data => {
         const text = data.toString();
-        const match = text.match(/(?:progress\s*[=:]?\s*|\s)(\d{1,3})%/i);
-        if (match) {
-          event.sender.send('fcp:transcription-progress', Number(match[1]));
+        const lines = `${stderrProgressBuffer}${text}`.split(/\r?\n/);
+        stderrProgressBuffer = lines.pop() || '';
+        for (const line of lines) {
+          const match = line.match(/progress\s*=\s*(\d{1,3})%/i);
+          if (match) {
+            event.sender.send('fcp:transcription-progress', Number(match[1]));
+          }
         }
         stderr += text;
       };
       childProcess.stdout.on('data', data => {
         const text = data.toString();
         stdout += text;
-        const match = text.match(/(?:progress\s*[=:]?\s*|\s)(\d{1,3})%/i);
-        if (match) event.sender.send('fcp:transcription-progress', Number(match[1]));
       });
       childProcess.stderr.on('data', reportProgress);
       childProcess.on('error', reject);
@@ -600,7 +674,7 @@ ipcMain.handle('fcp:transcribe-audio', async (event, fileData, fileName, targetF
   }
 });
 ipcMain.handle('fcp:choose-wallpaper', async () => {
-  const result = await dialog.showOpenDialog({ properties: ['openFile'], filters: [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'webp'] }] });
+  const result = await dialog.showOpenDialog({ properties: ['openFile'], filters: [{ name: 'Images and videos', extensions: ['jpg', 'jpeg', 'png', 'webp', 'mp4', 'webm'] }] });
   if (result.canceled || !result.filePaths[0]) return readWallpaperConfig();
   await writeWallpaperConfig(true, result.filePaths[0]);
   return readWallpaperConfig();
@@ -759,7 +833,7 @@ ipcMain.handle('fcp:delete-source-file', async (_event, filePath) => {
 ipcMain.handle('fcp:disable-wallpaper', async () => {
   const current = await readWallpaperConfig();
   await writeWallpaperConfig(false, current.path || '');
-  return { enabled: false, path: current.path, dataUrl: null };
+  return { enabled: false, path: current.path, type: null, dataUrl: null, videoUrl: null };
 });
 ipcMain.handle('fcp:convert-media', async (event, fileData, fileName, targetFormat) => {
   const workDir = path.join(app.getPath('temp'), 'fcp', randomUUID());
@@ -911,6 +985,7 @@ function loadDevelopmentPage(window, attempt = 0) {
 }
 
 app.whenReady().then(async () => {
+  registerWallpaperProtocol();
   await fs.rm(path.join(app.getPath('temp'), 'fcp-staging'), { recursive: true, force: true });
   const splash = createSplashWindow();
   const window = createWindow();

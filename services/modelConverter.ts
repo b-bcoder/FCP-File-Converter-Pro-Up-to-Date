@@ -32,6 +32,12 @@ const getModelMimeType = (format: ModelFormat): string => {
   return 'application/octet-stream';
 };
 
+const toArrayBuffer = (bytes: Uint8Array): ArrayBuffer => {
+  const buffer = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(buffer).set(bytes);
+  return buffer;
+};
+
 const prepareGeometry = (geometry: { computeVertexNormals: () => void; computeTangents?: () => void; getAttribute: (name: string) => unknown }) => {
   geometry.computeVertexNormals();
   if (geometry.computeTangents && geometry.getAttribute('uv')) {
@@ -114,9 +120,9 @@ export const convertModel = async (
       onProgress: info => onProgress(Math.min(70, 10 + Math.round((info.current / Math.max(1, info.total)) * 60))),
     });
     onProgress(75);
-    if (targetFormat === 'GLB') return new Blob([skpToGLB(scene)], { type: 'model/gltf-binary' });
+    if (targetFormat === 'GLB') return new Blob([toArrayBuffer(skpToGLB(scene))], { type: 'model/gltf-binary' });
     if (targetFormat === 'OBJ') return new Blob([skpToOBJ(scene)], { type: 'text/plain' });
-    return new Blob([skpToSTLBinary(scene, unitScale)], { type: 'application/octet-stream' });
+    return new Blob([toArrayBuffer(skpToSTLBinary(scene, unitScale))], { type: 'application/octet-stream' });
   }
   const source = await parseModel(file);
   onProgress(45);
@@ -126,4 +132,3 @@ export const convertModel = async (
   onProgress(100);
   return result;
 };
-

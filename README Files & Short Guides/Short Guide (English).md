@@ -33,7 +33,7 @@ You can also drag files into the window.
 
 ## Audio transcription
 
-Add an audio file, select `TXT` for text or `SRT` for subtitles, and click `Convert All`. Whisper is included in the installer and runs locally; no MSYS2 installation or internet connection is required. WAV files are normalized automatically.
+Add an audio file, select `TXT` for text or `SRT` for subtitles, and click `Convert All`. The multilingual Whisper model included in the installer supports Dutch and automatically detects the spoken language. Transcription runs locally; no MSYS2 installation or internet connection is required. WAV files are normalized automatically.
 
 ## Important
 

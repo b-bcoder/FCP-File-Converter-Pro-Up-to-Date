@@ -33,7 +33,7 @@ Dosyaları pencereye sürükleyerek de ekleyebilirsiniz.
 
 ## Ses transkripsiyonu
 
-Bir ses dosyası ekleyin, metin için `TXT` veya altyazı için `SRT` seçin ve `Convert All` seçeneğine tıklayın. Whisper yükleyiciye dahildir ve yerel olarak çalışır; MSYS2 veya internet bağlantısı gerekmez. WAV dosyaları otomatik olarak normalleştirilir.
+Bir ses dosyası ekleyin, metin için `TXT` veya altyazı için `SRT` seçin ve `Convert All` seçeneğine tıklayın. Yükleyicide bulunan çok dilli Whisper modeli Hollandacayı da destekler ve konuşma dilini otomatik olarak algılar. Transkripsiyon yerel olarak yapılır; MSYS2 veya internet bağlantısı gerekmez. WAV dosyaları otomatik olarak normalleştirilir.
 
 ## Önemli
 

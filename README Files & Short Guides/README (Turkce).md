@@ -12,7 +12,7 @@ File Converter Pro, görüntüleri, videoları, ses dosyalarını ve PDF dosyala
 - Görüntüleri JPG, PNG, WEBP, HEIC, AVIF, PDF, ICO ve SVG formatlarına dönüştürme
 - Videoları MP4, WEBM, WMV ve MKV formatlarına dönüştürme
 - Ses dosyalarını MP3, WAV, FLAC ve OGG formatlarına dönüştürme
-- Ses dosyalarını Whisper ile yerel olarak TXT veya SRT formatına dönüştürme
+- Ses dosyalarını Hollandaca dahil birçok dilde Whisper ile yerel olarak TXT veya SRT formatına dönüştürme
 - PDF dosyalarından metin çıkarma
 - Birden fazla görüntüyü tek PDF dosyasında birleştirme
 - Dosya ve klasörleri toplu işleme
@@ -158,7 +158,7 @@ Renderer `contextIsolation: true` ve `nodeIntegration: false` kullanır. Yerel i
 
 ## Arka plan ayarlama
 
-Ana sayfada açık/koyu tema düğmesinin yanındaki dişli simgesine tıklayın. `Arka plan ekle` veya `Arka planı değiştir` seçeneklerinden birini seçip bir görüntü belirleyin. Varsayılan arka plana dönmek için `Arka planı kapat` seçeneğini kullanın. Seçim yerel olarak `config.json` dosyasına kaydedilir. Görüntünün esnememesi için ekranınızla aynı en-boy oranına sahip bir görsel kullanın.
+Ana sayfada açık/koyu tema düğmesinin yanındaki dişli simgesine tıklayın. `Arka plan ekle` veya `Arka planı değiştir` seçeneklerinden birini seçip bir görüntü ya da MP4/WebM video belirleyin. Videolar sessiz olarak döngü halinde oynatılır. Varsayılan arka plana dönmek için `Arka planı kapat` seçeneğini kullanın. Seçim yerel olarak `config.json` dosyasına kaydedilir. Görüntünün esnememesi için ekranınızla aynı en-boy oranına sahip bir görsel kullanın.
 
 ## Katkı ve teşekkürler
 

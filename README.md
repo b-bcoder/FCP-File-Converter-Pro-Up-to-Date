@@ -45,7 +45,7 @@ Convert audio files to:
 * FLAC
 * OGG
 
-You can also transcribe spoken audio locally into text.
+You can also transcribe spoken audio locally into text, including Dutch. Whisper automatically detects the spoken language.
 
 Available output formats:
 
@@ -130,7 +130,7 @@ FCP includes:
 * ZIP export for completed conversions
 * Optional AES-256 password protection for ZIP files
 * Optional automatic deletion of source files after successful conversion
-* Custom background wallpaper support
+* Custom image or looping video background support (MP4 and WebM)
 * Dark and light themes
 * Borderless fullscreen toggle with `F11`
 * Multilingual user interface
