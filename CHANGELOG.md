@@ -16,6 +16,7 @@ This project uses the structure of [Keep a Changelog](https://keepachangelog.com
 ### Fixed
 
 - Added React type declarations and resolved TypeScript errors reported by `npm run lint`
+- Fixed audio transcription progress so TXT/SRT jobs show Whisper's live progress instead of remaining at 0% until completion
 
 ## [1.2.1] - 2026-10-02
 
