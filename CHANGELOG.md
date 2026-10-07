@@ -313,9 +313,9 @@ This project uses the structure of [Keep a Changelog](https://keepachangelog.com
 - Basic configuration for Electron-builder
 - Local preload and main process structure
 
-[Unreleased]: https://github.com/uihorsewolf-design/FCP-File-Converter-Pro-Up-to-Date/compare/v0.0.3...HEAD
-[1.0.7]: https://github.com/uihorsewolf-design/FCP-File-Converter-Pro-Up-to-Date/releases/tag/v1.0.7
-[1.0.6]: https://github.com/uihorsewolf-design/FCP-File-Converter-Pro-Up-to-Date/releases/tag/v1.0.6
-[1.0.5]: https://github.com/uihorsewolf-design/FCP-File-Converter-Pro-Up-to-Date/releases/tag/v1.0.5
-[1.0.4]: https://github.com/uihorsewolf-design/FCP-File-Converter-Pro-Up-to-Date/releases/tag/v1.0.4
-[0.0.3]: https://github.com/uihorsewolf-design/FCP-File-Converter-Pro-Up-to-Date/releases/tag/v0.0.3
+[Unreleased]: https://github.com/b-bcoder/FCP-File-Converter-Pro-Up-to-Date/compare/v0.0.3...HEAD
+[1.0.7]: https://github.com/b-bcoder/FCP-File-Converter-Pro-Up-to-Date/releases/tag/v1.0.7
+[1.0.6]: https://github.com/b-bcoder/FCP-File-Converter-Pro-Up-to-Date/releases/tag/v1.0.6
+[1.0.5]: https://github.com/b-bcoder/FCP-File-Converter-Pro-Up-to-Date/releases/tag/v1.0.5
+[1.0.4]: https://github.com/b-bcoder/FCP-File-Converter-Pro-Up-to-Date/releases/tag/v1.0.4
+[0.0.3]: https://github.com/b-bcoder/FCP-File-Converter-Pro-Up-to-Date/releases/tag/v0.0.3
