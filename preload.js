@@ -36,6 +36,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 	stageFile: (fileData, fileName) => ipcRenderer.invoke('fcp:stage-file', fileData, fileName),
 	cleanupStagedFile: (filePath) => ipcRenderer.invoke('fcp:cleanup-staged-file', filePath),
 	extractArchive: (filePath, outputDirectory, fileName) => ipcRenderer.invoke('fcp:extract-archive', filePath, outputDirectory, fileName),
+	compressFolders: (folderPaths, format, outputDirectory) => ipcRenderer.invoke('fcp:compress-folders', folderPaths, format, outputDirectory),
 	createZipFile: () => ipcRenderer.invoke('fcp:create-zip-file'),
 	appendZipFile: (filePath, data) => ipcRenderer.invoke('fcp:append-zip-file', filePath, data),
 	cleanupZipFile: (filePath) => ipcRenderer.invoke('fcp:cleanup-zip-file', filePath),

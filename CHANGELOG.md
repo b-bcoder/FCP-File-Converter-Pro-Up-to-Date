@@ -6,6 +6,12 @@ This project uses the structure of [Keep a Changelog](https://keepachangelog.com
 
 ## [Unreleased]
 
+## 1.2.3
+
+### Added
+
+- Compress dropped folders independently as ZIP, 7Z, TAR, GZ/TGZ, BZ2/TBZ, XZ/TXZ, LZMA or CAB archives
+
 ## [1.2.2] - 2026-10-03
 
 ### Added
@@ -141,6 +147,7 @@ This project uses the structure of [Keep a Changelog](https://keepachangelog.com
 - Downloads now save directly to the configured output folder without opening a Windows save dialog
 - Downloads continue to use the Windows save dialog when no output folder is configured
 - Conversions can run without an output folder; source files are only deleted when a configured output folder receives the converted files successfully
+- The NSIS installer will now prompt you to choose where you want to install the application, instead of automatically installing it in the default installation folder.
 
 ## [1.0.3] - 2026-09-06
 

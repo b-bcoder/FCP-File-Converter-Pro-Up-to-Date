@@ -43,6 +43,7 @@ declare global {
       stageFile: (fileData: ArrayBuffer | string, fileName: string) => Promise<string>;
       cleanupStagedFile: (filePath: string) => Promise<boolean>;
       deleteSourceFile: (filePath: string) => Promise<boolean>;
+      compressFolders: (folderPaths: string[], format: string, outputDirectory?: string) => Promise<Array<{ folderPath: string; outputPath?: string; error?: string }>>;
       saveFile: (options: any) => Promise<string | null>;
       getVaultStatus: () => Promise<{ enabled: boolean; outputDirectory?: string; quotaBytes?: number }>;
       createVault: (options: { outputDirectory: string; password: string; quotaGb: number }) => Promise<{ enabled: boolean; outputDirectory: string; quotaBytes: number }>;

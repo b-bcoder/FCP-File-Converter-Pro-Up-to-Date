@@ -1,6 +1,6 @@
 FILE CONVERTER PRO (FCP)
 Uitgebreid overzicht van functies, mogelijkheden en ondersteunende engines
-Versie: 1.1.0
+Versie: 1.2.3
 
 ======================================================================
 1. ALGEMEEN
@@ -18,8 +18,11 @@ Belangrijke eigenschappen:
 - Conversies kunnen zonder ingestelde uitvoermap worden uitgevoerd.
 - Resultaten kunnen individueel worden gedownload of als ZIP worden gebundeld.
 - De app ondersteunt meerdere engines voor verschillende bestandstypen.
+- DOCX- en XLSX-documenten kunnen naar andere formaten worden geconverteerd.
+- Ondersteunde archieven kunnen worden uitgepakt en gedropte mappen kunnen
+  naar verschillende archiefformaten worden gecomprimeerd.
 - De applicatie is gebouwd voor Windows als Electron-desktopapp.
-- De huidige release is versie 1.1.0.
+- De huidige release is versie 1.2.3.
 
 Internet wordt alleen gebruikt voor de optionele controle op nieuwe FCP-updates
 via de GitHub Releases-pagina. Updates worden niet zonder bevestiging gedownload
@@ -55,6 +58,8 @@ FCP ondersteunt de volgende hoofdgroepen:
 - PDF-documenten
 - Audio-transcriptie
 - 3D-modellen
+- Office-documenten
+- Archieven uitpakken en mappen comprimeren
 - ZIP-export en beveiligde opslag
 
 ======================================================================
@@ -186,7 +191,7 @@ Mogelijkheden:
 - Transcripties in een batch verwerken.
 
 ======================================================================
-7. PDF-FUNCTIES
+7. PDF- EN OFFICE-DOCUMENTFUNCTIES
 ======================================================================
 
 Ondersteunde PDF-functies:
@@ -198,11 +203,22 @@ Ondersteunde PDF-functies:
 - Meerdere afbeeldingen combineren tot een PDF.
 - PDF-resultaten meenemen in downloads en ZIP-exports.
 
+Ondersteunde Office-conversies:
+
+- DOCX naar TXT, HTML of PDF.
+- XLSX naar CSV, JSON, TXT of PDF.
+
+Opmerkingen bij XLSX-conversie:
+
+- CSV-uitvoer bevat het eerste werkblad.
+- JSON-, TXT- en PDF-uitvoer bevatten werkbladgegevens uit de werkmap.
+- Werkmappen met meer dan 1.000.000 cellen worden geweigerd.
+
 ======================================================================
 8. 3D MODEL CONVERSION
 ======================================================================
 
-FCP bevat vanaf versie 1.1.0 een aparte modus: 3D Model Conversion.
+FCP bevat een aparte modus: 3D Model Conversion.
 
 Ondersteunde 3D-formaten:
 
@@ -290,6 +306,9 @@ De centrale conversiewachtrij ondersteunt:
 - Bestanden uit de wachtrij verwijderen.
 - De volledige wachtrij leegmaken.
 - Een actieve conversie annuleren wanneer dat beschikbaar is.
+- Bestandstypegerichte dropzones gebruiken en bestanden vanuit de wachtrij op
+  een doelformaat slepen.
+- Alleen conversiedoelen tonen die bij het geselecteerde bestandstype passen.
 
 Bulkacties:
 
@@ -315,6 +334,18 @@ Mogelijkheden:
 
 Wanneer geen uitvoermap is ingesteld, opent Windows een locatiekeuze voor het
 opslaan van individuele bestanden of ZIP-bestanden.
+
+Archieven uitpakken en mappen comprimeren:
+
+- ZIP-, 7Z-, TAR-, GZ/TGZ-, BZ2/TBZ/TBZ2-, XZ/TXZ-, LZMA- en CAB-archieven
+  uitpakken naar een aparte map.
+- Archiefpaden worden vooraf gecontroleerd; symbolische en hard links worden
+  geweigerd.
+- Uitpakken is beperkt tot 50.000 items en maximaal 100 GB uitgepakte gegevens.
+- Als de ingestelde uitvoermap een versleutelde kluis is, vraagt FCP om een
+  aparte bestemming voor het uitpakken.
+- Elke gedropte map kan afzonderlijk worden gecomprimeerd als ZIP, 7Z, TAR,
+  GZ/TGZ, BZ2/TBZ, XZ/TXZ, LZMA of CAB.
 
 ======================================================================
 11. BEVEILIGDE KLUIS
@@ -377,6 +408,7 @@ Beschikbare interfacefuncties:
 - Meertalige interface.
 - Instelbare UI-transparantie.
 - Eigen achtergrondafbeelding instellen.
+- Een herhalende, stille MP4- of WebM-video als achtergrond instellen.
 - Achtergrondafbeelding wijzigen.
 - Achtergrond uitschakelen.
 - Uitvoermap kiezen.
@@ -533,7 +565,7 @@ Belangrijke onderdelen:
 - whisper-node
 - whisper-runtime
 - whisper-cli.exe op Windows
-- ggml-base.en.bin
+- Meertalig ggml-base.bin-basismodel
 
 14.10 zip.js Archive Engine
 
@@ -564,6 +596,34 @@ Electron verzorgt:
 - GPU-detectie.
 - Updatecontrole en update-installatie.
 - Preload-bridge tussen renderer en native main process.
+
+14.12 Office-document-engines
+
+Verantwoordelijk voor:
+
+- DOCX-tekst extraheren en DOCX naar HTML converteren.
+- XLSX-werkmap- en werkbladgegevens uitlezen.
+- TXT-, HTML-, CSV-, JSON- en PDF-uitvoer maken.
+
+Belangrijke packages:
+
+- mammoth
+- exceljs
+- jspdf
+
+14.13 Archief-engines
+
+Verantwoordelijk voor:
+
+- Ondersteunde archiefformaten weergeven, valideren en uitpakken.
+- Archieven maken van gedropte mappen.
+- Archiefpaden, links, aantallen items en uitgepakte grootte controleren
+  tijdens het uitpakken.
+
+Belangrijke onderdelen:
+
+- 7zip-bin
+- lzma-native
 
 ======================================================================
 15. LOKALE TIJDELIJKE BESTANDEN
@@ -634,6 +694,10 @@ Voor distributie:
 - ZIP- en vaultbestanden zijn bedoeld voor gebruik binnen de FCP-workflow.
 - Een vergeten vault-wachtwoord kan niet worden hersteld.
 - Automatische bronverwijdering is onomkeerbaar na bevestiging.
+- XLSX-conversie is beperkt tot 1.000.000 cellen; CSV-uitvoer bevat alleen het
+  eerste werkblad.
+- Archieven met links, meer dan 50.000 items of meer dan 100 GB uitgepakte data
+  worden niet uitgepakt.
 - De productiebuild kan grote JavaScript-bundles bevatten door de combinatie
   van media-, PDF- en 3D-engines.
 

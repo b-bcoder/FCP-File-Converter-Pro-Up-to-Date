@@ -1,6 +1,6 @@
 FILE CONVERTER PRO (FCP)
 Comprehensive overview of features, capabilities, and supporting engines
-Version: 1.1.0
+Version: 1.2.3
 
 ======================================================================
 1. OVERVIEW
@@ -18,8 +18,11 @@ Key features:
 - Conversions can be run without setting an output folder.
 - Results can be downloaded individually or bundled into a ZIP archive.
 - The app supports multiple engines for different file types.
+- DOCX and XLSX documents can be converted to other formats.
+- Supported archives can be extracted, and dropped folders can be compressed
+  into several archive formats.
 - The application is built for Windows as an Electron desktop app.
-- The current release is version 1.1.0.
+- The current release is version 1.2.3.
 
 Internet access is only used for the optional check for new FCP updates via the
 GitHub Releases page. Updates are not downloaded or installed without
@@ -55,6 +58,8 @@ FCP supports the following main categories:
 - PDF documents
 - Audio transcription
 - 3D models
+- Office documents
+- Archive extraction and folder compression
 - ZIP export and secure storage
 
 ======================================================================
@@ -185,7 +190,7 @@ Capabilities:
 - Process transcripts in a batch.
 
 ======================================================================
-7. PDF FEATURES
+7. PDF AND OFFICE DOCUMENT FEATURES
 ======================================================================
 
 Supported PDF features:
@@ -197,11 +202,22 @@ Supported PDF features:
 - Combine multiple images into a PDF.
 - Include PDF results in downloads and ZIP exports.
 
+Supported Office conversions:
+
+- DOCX to TXT, HTML, or PDF.
+- XLSX to CSV, JSON, TXT, or PDF.
+
+XLSX conversion notes:
+
+- CSV output contains the first worksheet.
+- JSON, TXT, and PDF output include workbook worksheet data.
+- Workbooks with more than 1,000,000 cells are rejected.
+
 ======================================================================
 8. 3D MODEL CONVERSION
 ======================================================================
 
-Starting with version 1.1.0, FCP includes a separate mode: 3D Model Conversion.
+FCP includes a dedicated 3D Model Conversion mode.
 
 Supported 3D formats:
 
@@ -289,6 +305,8 @@ The central conversion queue supports:
 - Remove files from the queue.
 - Clear the entire queue.
 - Cancel an active conversion when available.
+- Use file-type-aware drop zones and drop queued files directly onto a target.
+- Show conversion targets that match the selected file type.
 
 Bulk actions:
 
@@ -314,6 +332,18 @@ Capabilities:
 
 If no output folder is set, Windows opens a location picker for saving
 individual files or ZIP archives.
+
+Archive extraction and folder compression:
+
+- Extract ZIP, 7Z, TAR, GZ/TGZ, BZ2/TBZ/TBZ2, XZ/TXZ, LZMA, and CAB archives
+  into a separate folder.
+- Before extraction, archive paths are validated and symbolic and hard links
+  are rejected.
+- Extraction is limited to 50,000 entries and 100 GB of expanded data.
+- If the configured output folder is an encrypted vault, extraction asks for a
+  separate destination.
+- Each dropped folder can be compressed independently as ZIP, 7Z, TAR,
+  GZ/TGZ, BZ2/TBZ, XZ/TXZ, LZMA, or CAB.
 
 ======================================================================
 11. SECURE VAULT
@@ -375,6 +405,7 @@ Available interface features:
 - Multilingual interface.
 - Adjustable UI transparency.
 - Set a custom background image.
+- Set a looping, muted MP4 or WebM video as the background.
 - Change the background image.
 - Disable the background.
 - Choose an output folder.
@@ -530,7 +561,7 @@ Key components:
 - whisper-node
 - whisper-runtime
 - whisper-cli.exe op Windows
-- ggml-base.en.bin
+- Multilingual ggml-base.bin model
 
 14.10 zip.js Archive Engine
 
@@ -561,6 +592,34 @@ Electron provides:
 - GPU detection.
 - Update checks and installation.
 - The preload bridge between the renderer and native main process.
+
+14.12 Office Document Engines
+
+Responsible for:
+
+- Extracting DOCX text and converting DOCX to HTML.
+- Reading XLSX workbook and worksheet data.
+- Producing TXT, HTML, CSV, JSON, and PDF outputs.
+
+Key packages:
+
+- mammoth
+- exceljs
+- jspdf
+
+14.13 Archive Engines
+
+Responsible for:
+
+- Listing, validating, and extracting supported archive formats.
+- Creating archives from dropped folders.
+- Applying archive path, link, entry-count, and expanded-size safety checks
+  during extraction.
+
+Key components:
+
+- 7zip-bin
+- lzma-native
 
 ======================================================================
 15. LOCAL TEMPORARY FILES
@@ -631,6 +690,10 @@ For distribution:
 - ZIP and vault files are intended for use within the FCP workflow.
 - A forgotten vault password cannot be recovered.
 - Automatic source deletion cannot be undone after confirmation.
+- XLSX conversion is limited to 1,000,000 cells; CSV output contains only the
+  first worksheet.
+- Archive extraction rejects links, archives with more than 50,000 entries,
+  and archives that expand beyond 100 GB.
 - The production build may contain large JavaScript bundles due to the
   combination of media, PDF, and 3D engines.
 

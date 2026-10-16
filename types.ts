@@ -34,6 +34,17 @@ export enum ConversionTarget {
   GLB = 'GLB',
 }
 
+export enum FolderArchiveFormat {
+  ZIP = 'ZIP',
+  SEVEN_ZIP = '7Z',
+  TAR = 'TAR',
+  GZ = 'GZ/TGZ',
+  BZ2 = 'BZ2/TBZ',
+  XZ = 'XZ/TXZ',
+  LZMA = 'LZMA',
+  CAB = 'CAB',
+}
+
 export type FileStatus = 'pending' | 'reading' | 'converting' | 'success' | 'error';
 
 export interface ConversionFile {

@@ -1,6 +1,6 @@
 const { app, BrowserWindow, ipcMain, dialog, Menu, protocol } = require('electron');
 const fs = require('node:fs/promises');
-const { createReadStream, createWriteStream } = require('node:fs');
+const { createReadStream, createWriteStream, constants: fsConstants } = require('node:fs');
 const { Readable, Transform } = require('node:stream');
 const { pipeline } = require('node:stream/promises');
 const crypto = require('node:crypto');
@@ -9,6 +9,7 @@ const { spawn, spawnSync } = require('node:child_process');
 const path = require('node:path');
 const os = require('node:os');
 const ffmpegPath = require('ffmpeg-static');
+const lzma = require('lzma-native');
 const { hashRaw } = require('@node-rs/argon2');
 
 protocol.registerSchemesAsPrivileged([{
@@ -23,7 +24,7 @@ const sevenZipPath = app.isPackaged
 const isDevelopment = !app.isPackaged;
 const developmentUrl = 'http://localhost:3000';
 const updateRepository = 'b-bcoder/FCP-File-Converter-Pro-Up-to-Date';
-const iconPath = path.join(__dirname, 'assets', 'icon.ico');
+const iconPath = path.join(__dirname, 'assets', 'icon.zip');
 const whisperRuntimePath = app.isPackaged
   ? path.join(process.resourcesPath, 'whisper-runtime')
   : path.join(__dirname, 'whisper-runtime');
@@ -735,6 +736,174 @@ ipcMain.handle('fcp:stage-file', async (_event, fileData, fileName) => {
 ipcMain.handle('fcp:cleanup-staged-file', async (_event, filePath) => {
   await fs.rm(String(filePath), { force: true });
   return true;
+});
+ipcMain.handle('fcp:compress-folders', async (_event, requestedFolderPaths, requestedFormat, requestedOutputDirectory) => {
+  const formats = {
+    ZIP: { extension: '.zip', type: 'zip' },
+    '7Z': { extension: '.7z', type: '7z' },
+    TAR: { extension: '.tar', type: 'tar' },
+    'GZ/TGZ': { extension: '.tar.gz', type: 'gzip', tar: true },
+    'BZ2/TBZ': { extension: '.tar.bz2', type: 'bzip2', tar: true },
+    'XZ/TXZ': { extension: '.tar.xz', type: 'xz', tar: true },
+    LZMA: { extension: '.tar.lzma', type: 'lzma', tar: true },
+    CAB: { extension: '.cab', type: 'cab' },
+  };
+  const format = formats[String(requestedFormat || '')];
+  if (!format) throw new Error('Unsupported folder archive format.');
+  if (!Array.isArray(requestedFolderPaths) || requestedFolderPaths.length === 0) {
+    throw new Error('No folders were provided for compression.');
+  }
+
+  let outputDirectory = String(requestedOutputDirectory || '').trim();
+  if (!outputDirectory) {
+    const result = await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'] });
+    if (result.canceled || !result.filePaths[0]) throw new Error('Folder compression was cancelled.');
+    outputDirectory = result.filePaths[0];
+  }
+  outputDirectory = path.resolve(outputDirectory);
+  await fs.mkdir(outputDirectory, { recursive: true });
+
+  const runSevenZip = (args, cwd) => new Promise((resolve, reject) => {
+    const process = spawn(sevenZipPath, args, { cwd, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    let stdout = '';
+    let stderr = '';
+    process.stdout.on('data', chunk => { if (stdout.length < 1024 * 1024) stdout += chunk.toString(); });
+    process.stderr.on('data', chunk => { if (stderr.length < 1024 * 1024) stderr += chunk.toString(); });
+    process.on('error', reject);
+    process.on('close', code => {
+      if (code !== 0) return reject(new Error(`7-Zip failed with code ${code}: ${(stderr || stdout).trim().slice(-800)}`));
+      resolve();
+    });
+  });
+
+  const runSystemCommand = (command, args, cwd, env = process.env) => new Promise((resolve, reject) => {
+    const process = spawn(command, args, { cwd, env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    let stdout = '';
+    let stderr = '';
+    process.stdout.on('data', chunk => { if (stdout.length < 1024 * 1024) stdout += chunk.toString(); });
+    process.stderr.on('data', chunk => { if (stderr.length < 1024 * 1024) stderr += chunk.toString(); });
+    process.on('error', reject);
+    process.on('close', code => {
+      if (code !== 0) return reject(new Error(`${path.basename(command)} failed with code ${code}: ${(stderr || stdout).trim().slice(-800)}`));
+      resolve(stdout);
+    });
+  });
+
+  const createCabArchive = async (folderPath, archivePath, workDirectory) => {
+    if (process.platform !== 'win32') throw new Error('CAB folder compression is only available on Windows.');
+    const folderName = path.basename(folderPath);
+    const entries = [];
+    const collectFiles = async (directoryPath, relativePath = '') => {
+      const children = await fs.readdir(directoryPath, { withFileTypes: true });
+      for (const child of children) {
+        const sourcePath = path.join(directoryPath, child.name);
+        const childRelativePath = path.join(relativePath, child.name);
+        if (child.isDirectory()) {
+          await collectFiles(sourcePath, childRelativePath);
+        } else if (child.isFile()) {
+          entries.push({
+            sourcePath,
+            archivePath: path.join(folderName, childRelativePath).replace(/\//g, '\\'),
+          });
+          if (entries.length > 65535) throw new Error('CAB archives cannot contain more than 65,535 files.');
+        } else {
+          throw new Error(`CAB archives cannot include symbolic links or special files: ${sourcePath}`);
+        }
+      }
+    };
+    await collectFiles(folderPath);
+    if (entries.length === 0) throw new Error('CAB archives cannot store an empty folder.');
+
+    const cabinetFileName = path.basename(archivePath);
+    const quote = String.fromCharCode(34);
+    const directives = [
+      `.Set CabinetNameTemplate=${cabinetFileName}`,
+      '.Set DiskDirectoryTemplate=.',
+      '.Set CompressionType=MSZIP',
+      '.Set Cabinet=ON',
+      '.Set Compress=ON',
+      '.Set MaxDiskSize=0',
+      '.Set CabinetFileCountThreshold=0',
+      ...entries.map(entry => `${quote}${entry.sourcePath}${quote} ${quote}${entry.archivePath}${quote}`),
+    ];
+    const ddfPath = path.join(workDirectory, `${randomUUID()}.ddf`);
+    const ansiDdfPath = path.join(workDirectory, `${randomUUID()}.ansi.ddf`);
+    await fs.writeFile(ddfPath, directives.join('\r\n'), 'utf8');
+
+    const conversionScript = [
+      '$ErrorActionPreference = "Stop"',
+      '$encoding = [System.Text.Encoding]::GetEncoding([System.Globalization.CultureInfo]::CurrentCulture.TextInfo.ANSICodePage, [System.Text.EncoderExceptionFallback]::new(), [System.Text.DecoderExceptionFallback]::new())',
+      '$text = [System.IO.File]::ReadAllText($env:FCP_DDF_SOURCE, [System.Text.Encoding]::UTF8)',
+      '[System.IO.File]::WriteAllText($env:FCP_DDF_TARGET, $text, $encoding)',
+    ].join('; ');
+    const encodedConversionScript = Buffer.from(conversionScript, 'utf16le').toString('base64');
+    await runSystemCommand('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', encodedConversionScript], workDirectory, {
+      ...process.env,
+      FCP_DDF_SOURCE: ddfPath,
+      FCP_DDF_TARGET: ansiDdfPath,
+    });
+    await runSystemCommand('makecab.exe', ['/F', path.basename(ansiDdfPath)], workDirectory);
+  };
+
+  const workDirectory = await fs.mkdtemp(path.join(app.getPath('temp'), 'fcp-folder-archive-'));
+  const results = [];
+  try {
+    for (const requestedFolderPath of requestedFolderPaths) {
+      const folderPath = path.resolve(String(requestedFolderPath || ''));
+      let archivePath;
+      try {
+        if (!requestedFolderPath || folderPath === path.parse(folderPath).root) {
+          throw new Error('The selected folder path is invalid.');
+        }
+        const folderStat = await fs.lstat(folderPath);
+        if (!folderStat.isDirectory() || folderStat.isSymbolicLink()) {
+          throw new Error('The selected path is not a regular folder.');
+        }
+
+        const folderName = path.basename(folderPath).replace(/[\u0000-\u001f<>:"/\\|?*]/g, '_').replace(/[. ]+$/g, '') || 'folder';
+        const temporaryArchivePath = path.join(workDirectory, `${randomUUID()}${format.extension}`);
+        const sourceArgument = `.${path.sep}${path.basename(folderPath)}`;
+
+        if (format.type === 'cab') {
+          await createCabArchive(folderPath, temporaryArchivePath, workDirectory);
+        } else if (format.tar) {
+          const tarPath = path.join(workDirectory, `${randomUUID()}.tar`);
+          await runSevenZip(['a', '-y', '-bso0', '-bsp0', '-ttar', tarPath, sourceArgument], path.dirname(folderPath));
+          if (format.type === 'lzma') {
+            await pipeline(
+              createReadStream(tarPath),
+              lzma.createStream('aloneEncoder', { preset: 6 }),
+              createWriteStream(temporaryArchivePath)
+            );
+          } else {
+            await runSevenZip(['a', '-y', '-bso0', '-bsp0', `-t${format.type}`, temporaryArchivePath, path.basename(tarPath)], workDirectory);
+          }
+          await fs.rm(tarPath, { force: true });
+        } else {
+          await runSevenZip(['a', '-y', '-bso0', '-bsp0', `-t${format.type}`, temporaryArchivePath, sourceArgument], path.dirname(folderPath));
+        }
+
+        await fs.mkdir(outputDirectory, { recursive: true });
+        for (let suffix = 0; ; suffix += 1) {
+          const fileName = `${folderName}${suffix ? ` (${suffix})` : ''}${format.extension}`;
+          const candidatePath = path.join(outputDirectory, fileName);
+          try {
+            await fs.copyFile(temporaryArchivePath, candidatePath, fsConstants.COPYFILE_EXCL);
+            archivePath = candidatePath;
+            break;
+          } catch (error) {
+            if (error.code !== 'EEXIST') throw error;
+          }
+        }
+        results.push({ folderPath, outputPath: archivePath });
+      } catch (error) {
+        results.push({ folderPath, error: error instanceof Error ? error.message : String(error) });
+      }
+    }
+    return results;
+  } finally {
+    await fs.rm(workDirectory, { recursive: true, force: true });
+  }
 });
 ipcMain.handle('fcp:extract-archive', async (_event, requestedPath, requestedOutputDirectory, requestedFileName) => {
   const stagingDirectory = path.resolve(app.getPath('temp'), 'fcp-staging');

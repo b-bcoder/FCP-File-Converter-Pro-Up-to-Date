@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef, memo } from 'react';
-import { ConversionTarget, FileStatus, ConversionFile } from './types';
+import { ConversionTarget, FileStatus, ConversionFile, FolderArchiveFormat } from './types';
 import { convertAudioToText, convertImage, convertMedia, convertPdfToText } from './services/fileConverter';
 import { convertModel, getModelFormat, is3DModel, ModelFormat } from './services/modelConverter';
 import { getOfficeFormats, isOfficeDocument } from './services/fileFormats';
@@ -57,6 +57,9 @@ const isFileDrag = (dataTransfer: DataTransfer): boolean =>
   Array.from(dataTransfer.types).includes('Files') || Array.from(dataTransfer.items).some(item => item.kind === 'file');
 
 type ConversionCategory = 'image' | 'video' | 'audio' | 'pdf' | 'office' | 'archive' | 'model';
+type DropZoneTarget = ConversionTarget | FolderArchiveFormat;
+type ConversionDropZone = { category: ConversionCategory; format: DropZoneTarget };
+const folderArchiveFormats = Object.values(FolderArchiveFormat);
 
 const getConversionCategory = (file: File): ConversionCategory | null => {
   const mediaType = getMediaType(file);
@@ -132,7 +135,7 @@ const dropZoneCategoryTranslationKeys: Record<ConversionCategory, keyof typeof t
   model: 'conversion_category_model',
 };
 
-const getDropZonesForFiles = (files: File[]) => dropZoneFormatGroups.flatMap(group => {
+const getDropZonesForFiles = (files: File[]): ConversionDropZone[] => dropZoneFormatGroups.flatMap(group => {
   const categoryFiles = files.filter(file => getConversionCategory(file) === group.category);
   if (categoryFiles.length === 0) return [];
 
@@ -141,7 +144,13 @@ const getDropZonesForFiles = (files: File[]) => dropZoneFormatGroups.flatMap(gro
     .map(format => ({ category: group.category, format }));
 });
 
-  const allDropZones = dropZoneFormatGroups.flatMap(group => group.formats.map(format => ({ category: group.category, format })));
+  const allDropZones: ConversionDropZone[] = [
+    ...dropZoneFormatGroups.flatMap(group => group.formats.map(format => ({ category: group.category, format }))),
+    ...folderArchiveFormats.map(format => ({ category: 'archive' as const, format })),
+  ];
+  const folderArchiveFormatSet = new Set<string>(folderArchiveFormats);
+  const isFolderArchiveFormat = (format: DropZoneTarget): format is FolderArchiveFormat =>
+    folderArchiveFormatSet.has(format);
 
 const createZipFileWriter = (electronApi: any, filePath: string) => {
   const maxChunkBytes = 4 * 1024 * 1024;
@@ -176,7 +185,7 @@ const createZipFileWriter = (electronApi: any, filePath: string) => {
 };
 
 // Helper function to recursively traverse directories and collect files with their relative paths
-async function traverseDirectory(entry: FileSystemEntry, currentPath: string = ''): Promise<{ file: File; relativePath: string }[]> {
+async function traverseDirectory(entry: FileSystemEntry, currentPath: string = '', includeUnsupportedFiles = false): Promise<{ file: File; relativePath: string }[]> {
     if (!entry) return [];
 
     const newPath = currentPath ? `${currentPath}/${entry.name}` : entry.name;
@@ -185,7 +194,7 @@ async function traverseDirectory(entry: FileSystemEntry, currentPath: string = '
         return new Promise<{ file: File; relativePath: string }[]>((resolve, reject) => {
             entry.file(
                 (file: File) => {
-                    if (isSupportedMedia(file)) {
+                    if (includeUnsupportedFiles || isSupportedMedia(file)) {
                          resolve([{ file, relativePath: newPath }]);
                     } else {
                          resolve([]);
@@ -206,7 +215,7 @@ async function traverseDirectory(entry: FileSystemEntry, currentPath: string = '
                     async (entries: FileSystemEntry[]) => {
                         if (entries.length === 0) {
                             // All entries for this directory have been read
-                            const nestedFiles = await Promise.all(allEntries.map(e => traverseDirectory(e, newPath)));
+                            const nestedFiles = await Promise.all(allEntries.map(e => traverseDirectory(e, newPath, includeUnsupportedFiles)));
                             resolve(nestedFiles.flat());
                         } else {
                             allEntries.push(...entries);
@@ -1116,7 +1125,7 @@ const App: React.FC = () => {
     setCurrentPage(1);
   };
 
-  const onDrop = useCallback(async (event: React.DragEvent<HTMLDivElement>, targetFormat?: ConversionTarget) => {
+  const onDrop = useCallback(async (event: React.DragEvent<HTMLDivElement>, targetFormat?: DropZoneTarget) => {
     event.preventDefault();
     event.stopPropagation();
     dragPreviewSignatureRef.current = '';
@@ -1127,10 +1136,63 @@ const App: React.FC = () => {
     const queuedFileId = targetFormat && event.dataTransfer.getData('application/x-fcp-file-id');
     if (queuedFileId) {
         const queuedFile = files.find(file => file.id === queuedFileId);
-        if (queuedFile && queuedFile.status === 'pending' && getAvailableFormats(queuedFile.file).includes(targetFormat) && !isSameSourceFormat(queuedFile.file, targetFormat)) {
+        if (queuedFile && targetFormat && !isFolderArchiveFormat(targetFormat) && queuedFile.status === 'pending' && getAvailableFormats(queuedFile.file).includes(targetFormat) && !isSameSourceFormat(queuedFile.file, targetFormat)) {
             updateFileState(queuedFileId, { targetFormat });
         }
         return;
+    }
+
+    if (targetFormat && isFolderArchiveFormat(targetFormat)) {
+      setIsTraversing(true);
+      try {
+        const electronApi = (window as any).electronAPI;
+        if (!electronApi?.compressFolders || !electronApi?.getFilePath) {
+          throw new Error('Folder compression is unavailable in this app build.');
+        }
+
+        const directoryEntries = Array.from(event.dataTransfer.items)
+          .filter(item => item.kind === 'file')
+          .map(item => (item as any).webkitGetAsEntry?.() as FileSystemEntry | null)
+          .filter((entry): entry is FileSystemEntry => Boolean(entry?.isDirectory));
+        if (directoryEntries.length === 0) {
+          throw new Error('Drop one or more folders here to compress them.');
+        }
+
+        const folderPaths: string[] = [];
+        for (const entry of directoryEntries) {
+          const contents = await traverseDirectory(entry, '', true);
+          if (contents.length === 0) {
+            throw new Error(`The folder "${entry.name}" is empty or could not be read.`);
+          }
+
+          const firstFile = contents[0];
+          const filePath = electronApi.getFilePath(firstFile.file);
+          if (!filePath) throw new Error(`Could not access the source path for "${entry.name}".`);
+          const pathSeparator = filePath.includes('\\') ? '\\' : '/';
+          const pathSegments = firstFile.relativePath.split('/');
+          let folderPath = filePath;
+          for (let segment = 1; segment < pathSegments.length; segment += 1) {
+            const separatorIndex = folderPath.lastIndexOf(pathSeparator);
+            if (separatorIndex < 0) throw new Error(`Could not determine the source folder for "${entry.name}".`);
+            folderPath = folderPath.slice(0, separatorIndex);
+          }
+          folderPaths.push(folderPath);
+        }
+
+        const results = await electronApi.compressFolders(folderPaths, targetFormat, outputDirectory || undefined);
+        const resultMessages = results.map((result: { folderPath: string; outputPath?: string; error?: string }) =>
+          result.outputPath
+            ? `${t('folder_archive_created', language)}: ${result.outputPath}`
+            : `${t('folder_archive_failed', language)}: ${result.folderPath} — ${result.error || 'Unknown error'}`
+        );
+        window.alert(resultMessages.join('\n'));
+      } catch (error) {
+        console.error('Error compressing dropped folders:', error);
+        window.alert(`${t('folder_archive_failed', language)}: ${error instanceof Error ? error.message : String(error)}`);
+      } finally {
+        setIsTraversing(false);
+      }
+      return;
     }
 
     setIsTraversing(true);
@@ -1162,7 +1224,7 @@ const App: React.FC = () => {
     } finally {
       setIsTraversing(false);
     }
-  }, [addFiles, files, updateFileState]);
+  }, [addFiles, files, language, outputDirectory, updateFileState]);
 
   const updateDragPreview = useCallback((dataTransfer: DataTransfer) => {
     const supportedFiles = getDraggedFiles(dataTransfer).filter(isSupportedMedia);
@@ -1487,28 +1549,47 @@ const App: React.FC = () => {
     );
   }
 
-  const renderConversionDropZones = (zones: { category: ConversionCategory; format: ConversionTarget }[]) => (
+  const renderDropZone = (zone: ConversionDropZone) => {
+    const isFolderCompression = isFolderArchiveFormat(zone.format);
+    return (
+      <div
+        key={`${zone.category}-${zone.format}`}
+        onDrop={event => void onDrop(event, zone.format)}
+        onDragOver={onDragOver}
+        role="group"
+        aria-label={`${isFolderCompression ? t('drop_to_compress', language) : t('drop_to_convert', language)} ${zone.format}`}
+        className="flex min-h-28 cursor-copy flex-col items-center justify-center rounded-lg border border-cyan-950 bg-cyan-800 px-3 py-5 text-center text-white transition hover:bg-cyan-700 dark:border-cyan-950 dark:bg-cyan-800 dark:hover:bg-cyan-700"
+      >
+        <span className="text-sm font-medium">{isFolderCompression ? t('drop_to_compress', language) : t('drop_to_convert', language)}</span>
+        <span className="text-xl font-semibold">{zone.format === ConversionTarget.EXTRACT ? t('extract_archive', language) : zone.format}</span>
+      </div>
+    );
+  };
+
+  const renderConversionDropZones = (zones: ConversionDropZone[]) => (
     <section className="space-y-4" aria-label="Conversion targets">
       {dropZoneFormatGroups.filter(group => zones.some(zone => zone.category === group.category)).map(group => (
         <div key={group.category} className="space-y-2">
           <h3 className="text-center text-lg font-semibold text-cyan-700 dark:text-cyan-300">
             {t(dropZoneCategoryTranslationKeys[group.category], language)}
           </h3>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-            {zones.filter(zone => zone.category === group.category).map(zone => (
-              <div
-                key={`${zone.category}-${zone.format}`}
-                onDrop={event => void onDrop(event, zone.format)}
-                onDragOver={onDragOver}
-                role="group"
-                aria-label={`${t('drop_to_convert', language)} ${zone.format}`}
-                className="flex min-h-28 cursor-copy flex-col items-center justify-center rounded-lg border border-cyan-950 bg-cyan-800 px-3 py-5 text-center text-white transition hover:bg-cyan-700 dark:border-cyan-950 dark:bg-cyan-800 dark:hover:bg-cyan-700"
-              >
-                <span className="text-sm font-medium">{t('drop_to_convert', language)}</span>
-                <span className="text-xl font-semibold">{zone.format === ConversionTarget.EXTRACT ? t('extract_archive', language) : zone.format}</span>
+          {group.category !== 'archive' ? (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+              {zones.filter(zone => zone.category === group.category).map(renderDropZone)}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                {zones.filter(zone => zone.category === group.category && zone.format === ConversionTarget.EXTRACT).map(renderDropZone)}
               </div>
-            ))}
-          </div>
+              <div className="space-y-2">
+                <h4 className="text-center text-lg font-semibold text-cyan-700 dark:text-cyan-300">{t('compress_folders', language)}</h4>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                  {folderArchiveFormats.map(format => renderDropZone({ category: 'archive', format }))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       ))}
     </section>

@@ -89,6 +89,18 @@ export const translations = {
   drop_to_convert: {
     en: "Drop here to convert to", nl: "Sleep hierheen om te converteren naar", tr: "Şuna dönüştürmek için buraya bırakın", zh: "拖放到此处以转换为", ja: "ここにドロップして変換", fr: "Déposez ici pour convertir en", de: "Hier ablegen, um zu konvertieren nach",
   },
+  drop_to_compress: {
+    en: "Drop folders here to compress as", nl: "Sleep mappen hierheen om te comprimeren als", tr: "Klasörleri burada sıkıştırmak için bırakın", zh: "将文件夹拖放到此处并压缩为", ja: "フォルダーをここにドロップして圧縮", fr: "Déposez les dossiers ici pour les compresser en", de: "Ordner hier ablegen, um sie zu komprimieren als",
+  },
+  compress_folders: {
+    en: "Compress folders", nl: "Mappen comprimeren", tr: "Klasörleri sıkıştır", zh: "压缩文件夹", ja: "フォルダーを圧縮", fr: "Compresser les dossiers", de: "Ordner komprimieren",
+  },
+  folder_archive_created: {
+    en: "Archive created", nl: "Archief aangemaakt", tr: "Arşiv oluşturuldu", zh: "存档已创建", ja: "アーカイブを作成しました", fr: "Archive créée", de: "Archiv erstellt",
+  },
+  folder_archive_failed: {
+    en: "Could not compress folder", nl: "Map kon niet worden gecomprimeerd", tr: "Klasör sıkıştırılamadı", zh: "无法压缩文件夹", ja: "フォルダーを圧縮できませんでした", fr: "Impossible de compresser le dossier", de: "Ordner konnte nicht komprimiert werden",
+  },
   conversion_category_image: {
     en: "Image conversion", nl: "Afbeeldingconversie", tr: "Görsel dönüştürme", zh: "图像转换", ja: "画像変換", fr: "Conversion d’image", de: "Bildkonvertierung",
   },

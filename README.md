@@ -75,7 +75,7 @@ Convert XLSX workbooks to:
 
 ### 📦 Archives
 
-FCP can extract and compress files from and into common archive formats, including:
+FCP can extract files from common archive formats, including:
 
 * ZIP
 * 7Z
@@ -87,6 +87,8 @@ FCP can extract and compress files from and into common archive formats, includi
 * CAB
 
 FCP validates archives for malicious or unsafe content and refuses archives containing dangerous file paths, unsafe links, or an excessive number of files (zip-bomb protection).
+
+FCP can also compress each dropped folder into its own ZIP, 7Z, TAR, GZ/TGZ, BZ2/TBZ, XZ/TXZ, LZMA or CAB archive.
 
 ### 🗂️ Batch Processing & Folders
 
