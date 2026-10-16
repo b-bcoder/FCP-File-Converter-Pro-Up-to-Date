@@ -75,7 +75,7 @@ Convert XLSX workbooks to:
 
 ### 📦 Archives
 
-FCP can extract files from common archive formats, including:
+FCP can extract and compress files from and into common archive formats, including:
 
 * ZIP
 * 7Z
