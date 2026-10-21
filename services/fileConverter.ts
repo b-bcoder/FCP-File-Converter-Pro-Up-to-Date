@@ -1,8 +1,9 @@
 import { ConversionTarget } from '../types';
-import * as pdfjsLib from 'pdfjs-dist';
-import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
-import { jsPDF } from 'jspdf';
-import ImageTracer from 'imagetracerjs';
+
+declare const libheif: any;
+declare const jspdf: any;
+declare const pdfjsLib: any;
+declare const ImageTracer: any;
 
 function dataUrlToBlob(dataUrl: string): Blob {
   const arr = dataUrl.split(',');
@@ -24,7 +25,14 @@ export const convertPdfToText = async (
     file: File,
     onProgress: (progress: number) => void
 ): Promise<Blob> => {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+    if (typeof pdfjsLib === 'undefined') {
+        throw new Error('PDF.js library not loaded.');
+    }
+
+    // Set worker source (required for pdf.js)
+    if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+    }
 
     let arrayBuffer: ArrayBuffer;
     try {
@@ -32,7 +40,7 @@ export const convertPdfToText = async (
     } catch (err: any) {
         throw new Error(`Failed to read PDF file "${file.name}": ${err.message || 'File might have been moved or deleted.'}`);
     }
-    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+    const loadingTask = pdfjsLib.getDocument(arrayBuffer);
     const pdf = await loadingTask.promise;
 
     let fullText = "";
@@ -54,34 +62,11 @@ export const convertPdfToText = async (
     return new Blob([fullText], { type: 'text/plain' });
 };
 
-export const convertAudioToText = async (
-    file: File,
-    onProgress: (progress: number) => void,
-    targetFormat: ConversionTarget.TXT | ConversionTarget.SRT
-): Promise<Blob> => {
-    const electronApi = (window as any).electronAPI;
-    if (electronApi?.transcribeAudio) {
-        const fileData = await readFileAsArrayBuffer(file);
-        const removeProgressListener = electronApi.onTranscriptionProgress?.((progress: number) => {
-            onProgress(5 + Math.round(Math.max(0, Math.min(100, progress)) * 0.9));
-        });
-        try {
-            onProgress(5);
-            const transcript = await electronApi.transcribeAudio(fileData, file.name, targetFormat);
-            onProgress(100);
-            return new Blob([transcript], { type: 'text/plain; charset=utf-8' });
-        } finally {
-            removeProgressListener?.();
-        }
-    }
-
-    throw new Error('Whisper.cpp transcription engine is not available in the current app build.');
-};
-
 export const convertImage = (
     file: File, 
     targetFormat: ConversionTarget.JPG | ConversionTarget.PNG | ConversionTarget.WEBP | ConversionTarget.HEIC | ConversionTarget.AVIF | ConversionTarget.PDF | ConversionTarget.ICO | ConversionTarget.SVG, 
-    onReadProgress: (progress: number) => void
+    onReadProgress: (progress: number) => void,
+    targetDimensions?: { width: number; height: number; }
 ): Promise<Blob> => {
   return new Promise((resolve, reject) => {
     // Use createObjectURL instead of FileReader for massive memory savings
@@ -107,14 +92,31 @@ export const convertImage = (
             return reject(new Error('Could not get canvas context'));
           }
 
-          canvas.width = img.width;
-          canvas.height = img.height;
-          ctx.drawImage(img, 0, 0);
+          if (targetDimensions) {
+              canvas.width = targetDimensions.width;
+              canvas.height = targetDimensions.height;
+              const hRatio = canvas.width / img.width;
+              const vRatio = canvas.height / img.height;
+              const ratio = Math.min(hRatio, vRatio);
+              const centerShift_x = (canvas.width - img.width * ratio) / 2;
+              const centerShift_y = (canvas.height - img.height * ratio) / 2;
+              ctx.clearRect(0, 0, canvas.width, canvas.height);
+              ctx.drawImage(img, 0, 0, img.width, img.height,
+                            centerShift_x, centerShift_y, img.width * ratio, img.height * ratio);
+          } else {
+              canvas.width = img.width;
+              canvas.height = img.height;
+              ctx.drawImage(img, 0, 0);
+          }
 
           // Free memory immediately after drawing to canvas
           URL.revokeObjectURL(imageUrl);
 
           if (targetFormat === ConversionTarget.PDF) {
+              if (typeof jspdf === 'undefined') {
+                  return reject(new Error('PDF library not loaded.'));
+              }
+              const { jsPDF } = jspdf;
               const orientation = canvas.width > canvas.height ? 'l' : 'p';
               const doc = new jsPDF({
                   orientation,
@@ -128,8 +130,13 @@ export const convertImage = (
           }
 
           if (targetFormat === ConversionTarget.SVG) {
+              const tracer = (window as any).ImageTracer || (window as any).imagetracer;
+              if (!tracer) {
+                  return reject(new Error('ImageTracer library not loaded.'));
+              }
+              
               const dataUrl = canvas.toDataURL('image/png');
-              ImageTracer.imageToSVG(dataUrl, (svgString: string) => {
+              tracer.imageToSVG(dataUrl, (svgString: string) => {
                   const blob = new Blob([svgString], { type: 'image/svg+xml' });
                   resolve(blob);
               }, 'posterized2');
@@ -177,6 +184,25 @@ export const convertImage = (
               return;
           }
           
+          if (targetFormat === ConversionTarget.HEIC || targetFormat === ConversionTarget.AVIF) {
+              if (typeof libheif === 'undefined' || !libheif.Encoder) {
+                  return reject(new Error('HEIF/AVIF library not loaded.'));
+              }
+              const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+              const format = targetFormat === ConversionTarget.HEIC ? libheif.Image.Format.HEVC : libheif.Image.Format.AVIS;
+              const encoder = new libheif.Encoder(format);
+              const { heif: heifFile } = await encoder.encode(
+                  [{
+                      width: canvas.width,
+                      height: canvas.height,
+                      data: imageData.data
+                  }], { quality: 90 }
+              );
+              const mimeType = targetFormat === ConversionTarget.HEIC ? 'image/heic' : 'image/avif';
+              resolve(new Blob([heifFile as ArrayBuffer], { type: mimeType }));
+              return;
+          }
+          
           let mimeType: string;
           switch (targetFormat) {
             case ConversionTarget.JPG: mimeType = 'image/jpeg'; break;
@@ -206,13 +232,13 @@ export const convertImage = (
   });
 };
 
-const readFileAsArrayBuffer = async (file: File, onProgress?: (progress: number) => void): Promise<ArrayBuffer> => {
+const readFileAsArrayBuffer = async (file: File, onProgress: (progress: number) => void): Promise<ArrayBuffer> => {
     try {
         // Use arrayBuffer() which is more modern and often more reliable than FileReader
         // We simulate progress since arrayBuffer() doesn't provide it natively
-        onProgress?.(10);
+        onProgress(10);
         const buffer = await file.arrayBuffer();
-        onProgress?.(100);
+        onProgress(100);
         return buffer;
     } catch (err: any) {
         throw new Error(`Failed to read file "${file.name}": ${err.message || 'File might have been moved or deleted.'}`);
@@ -222,29 +248,11 @@ const readFileAsArrayBuffer = async (file: File, onProgress?: (progress: number)
 export const convertMedia = async (
     ffmpeg: any, 
     file: File, 
-    targetFormat: ConversionTarget.JPG | ConversionTarget.PNG | ConversionTarget.WEBP | ConversionTarget.HEIC | ConversionTarget.AVIF | ConversionTarget.MP4 | ConversionTarget.WEBM | ConversionTarget.WMV | ConversionTarget.MKV | ConversionTarget.MP3 | ConversionTarget.WAV | ConversionTarget.FLAC | ConversionTarget.OGG, 
-    onConvertProgress: (progress: number, etaSeconds?: number | null) => void, 
+    targetFormat: ConversionTarget.MP4 | ConversionTarget.WEBM | ConversionTarget.WMV | ConversionTarget.MKV | ConversionTarget.MP3 | ConversionTarget.WAV | ConversionTarget.FLAC | ConversionTarget.OGG, 
+    onConvertProgress: (progress: number) => void, 
     onReadProgress: (progress: number) => void,
-    inputPath?: string
+    targetDimensions?: { width: number; height: number; }
 ): Promise<Blob> => {
-        const electronApi = (window as any).electronAPI;
-        if (electronApi?.convertMedia) {
-            const filePath = inputPath || electronApi.getFilePath?.(file);
-            const fileData = filePath ? filePath : await readFileAsArrayBuffer(file, onReadProgress);
-            onReadProgress(100);
-            onConvertProgress(10);
-                        const removeProgressListener = electronApi.onMediaProgress?.((update: { fileName: string; progress: number; etaSeconds?: number | null }) => {
-                                if (update.fileName === file.name) onConvertProgress(update.progress, update.etaSeconds);
-                        });
-                        try {
-                            const nativeData = await electronApi.convertMedia(fileData, file.name, targetFormat);
-                            onConvertProgress(100, 0);
-                            return new Blob([nativeData], { type: getMediaMimeType(targetFormat) });
-                        } finally {
-                            removeProgressListener?.();
-                        }
-        }
-
     if (!ffmpeg) {
       throw new Error('FFmpeg instance is not available.');
     }
@@ -267,6 +275,9 @@ export const convertMedia = async (
     await ffmpeg.writeFile(inputFileName, new Uint8Array(fileData));
     
     const command = ['-i', inputFileName];
+    if (targetDimensions) {
+        command.push('-vf', `scale=w=${targetDimensions.width}:h=${targetDimensions.height}:force_original_aspect_ratio=decrease,pad=${targetDimensions.width}:${targetDimensions.height}:-1:-1:color=black`);
+    }
     command.push(outputFileName);
 
     await ffmpeg.exec(command);
@@ -281,11 +292,6 @@ export const convertMedia = async (
 
     onConvertProgress(100);
 
-    const mimeType = getMediaMimeType(targetFormat);
-    return new Blob([data], { type: mimeType });
-};
-
-function getMediaMimeType(targetFormat: ConversionTarget): string {
     let mimeType: string;
     switch (targetFormat) {
         case ConversionTarget.MP4: mimeType = 'video/mp4'; break;
@@ -296,12 +302,8 @@ function getMediaMimeType(targetFormat: ConversionTarget): string {
         case ConversionTarget.WAV: mimeType = 'audio/wav'; break;
         case ConversionTarget.FLAC: mimeType = 'audio/flac'; break;
         case ConversionTarget.OGG: mimeType = 'audio/ogg'; break;
-        case ConversionTarget.JPG: mimeType = 'image/jpeg'; break;
-        case ConversionTarget.PNG: mimeType = 'image/png'; break;
-        case ConversionTarget.WEBP: mimeType = 'image/webp'; break;
-        case ConversionTarget.HEIC: mimeType = 'image/heic'; break;
-        case ConversionTarget.AVIF: mimeType = 'image/avif'; break;
         default: mimeType = 'application/octet-stream';
     }
-    return mimeType;
-}
+
+    return new Blob([data], { type: mimeType });
+};
