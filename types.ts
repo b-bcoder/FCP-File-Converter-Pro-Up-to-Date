@@ -20,6 +20,29 @@ export enum ConversionTarget {
   OGG = 'OGG',
   // Document formats
   TXT = 'TXT',
+  SRT = 'SRT',
+  HTML = 'HTML',
+  CSV = 'CSV',
+  JSON = 'JSON',
+  // Archive actions
+  EXTRACT = 'EXTRACT',
+  // 3D model formats
+  STL = 'STL',
+  OBJ = 'OBJ',
+  FBX = 'FBX',
+  GLTF = 'GLTF',
+  GLB = 'GLB',
+}
+
+export enum FolderArchiveFormat {
+  ZIP = 'ZIP',
+  SEVEN_ZIP = '7Z',
+  TAR = 'TAR',
+  GZ = 'GZ/TGZ',
+  BZ2 = 'BZ2/TBZ',
+  XZ = 'XZ/TXZ',
+  LZMA = 'LZMA',
+  CAB = 'CAB',
 }
 
 export type FileStatus = 'pending' | 'reading' | 'converting' | 'success' | 'error';
@@ -29,10 +52,11 @@ export interface ConversionFile {
   file: File;
   status: FileStatus;
   targetFormat: ConversionTarget | null;
-  targetDimensions?: { width: number; height: number; };
   readProgress: number;
   progress: number;
+  etaSeconds?: number | null;
   convertedFileUrl: string | null;
+  outputPath?: string;
   error: string | null;
   relativePath?: string;
 }

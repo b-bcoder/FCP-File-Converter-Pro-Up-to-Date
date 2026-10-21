@@ -25,5 +25,19 @@
     },
     "allowImportingTsExtensions": true,
     "noEmit": true
-  }
+  },
+  "include": [
+    "App.tsx",
+    "index.tsx",
+    "i18n.ts",
+    "types.ts",
+    "services/**/*.ts",
+    "vite-env.d.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "release",
+    "electron-main.cjs"
+  ]
 }
