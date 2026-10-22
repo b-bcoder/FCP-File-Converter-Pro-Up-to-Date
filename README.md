@@ -1,4 +1,6 @@
-# File Converter Pro (FCP)
+# (Active development is paused until early 2027)
+
+## File Converter Pro (FCP) 
 
 **File Converter Pro** is a program for Windows that allows you to convert, edit, and process a wide variety of files locally on your own computer.
 
