@@ -3,4 +3,4 @@ updates:
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
-      interval: "daily at 12:00"
+      interval: "daily"
