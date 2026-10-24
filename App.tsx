@@ -241,6 +241,53 @@ function formatBytes(bytes: number, decimals = 2): string {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 }
 
+const pendingRendererLogStarts = new Map<string, Record<string, unknown>[]>();
+
+const getRendererLogOperationKey = (record: Record<string, unknown>) => {
+  const functionName = String(record.functionName || 'unknown');
+  const fileName = functionName === 'convertSingleFile' ? String(record.fileName || '') : '';
+  return `${functionName}:${fileName}`;
+};
+
+const sendRendererLog = (record: Record<string, unknown>) => {
+  const logger = (window as any).electronAPI?.writeCrashLog;
+  if (typeof logger !== 'function') return Promise.resolve();
+  try {
+    return Promise.resolve(logger(record)).then(written => {
+      if (written === false) console.error('Failed to write renderer diagnostic log.');
+    }).catch((error: unknown) => {
+      console.error('Failed to write renderer diagnostic log', error);
+    });
+  } catch (error) {
+    console.error('Failed to write renderer diagnostic log', error);
+    return Promise.resolve();
+  }
+};
+
+const writeRendererCrashLog = (record: Record<string, unknown>) => {
+  const key = getRendererLogOperationKey(record);
+  const isStart = /Started$/.test(String(record.event || ''));
+  if (isStart) {
+    const pending = pendingRendererLogStarts.get(key) || [];
+    pending.push(record);
+    pendingRendererLogStarts.set(key, pending);
+    return Promise.resolve();
+  }
+
+  const pending = pendingRendererLogStarts.get(key);
+  const writes: Promise<void>[] = [];
+  if (record.status === 'success' && pending?.length) {
+    const [started, ...remaining] = pending;
+    if (remaining.length) pendingRendererLogStarts.set(key, remaining);
+    else pendingRendererLogStarts.delete(key);
+    writes.push(sendRendererLog({ ...started, status: 'success' }));
+  } else if (record.status === 'failed' || record.status === 'cancelled' || record.error) {
+    pendingRendererLogStarts.delete(key);
+  }
+  if (record.status !== 'cancelled') writes.push(sendRendererLog(record));
+  return Promise.all(writes).then(() => undefined);
+};
+
 const PasswordModal: React.FC<{ onConfirm: (password: string | null) => void; onCancel: () => void, lang: string }> = ({ onConfirm, onCancel, lang }) => {
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -290,6 +337,41 @@ const PasswordModal: React.FC<{ onConfirm: (password: string | null) => void; on
             </div>
         </div>
     );
+};
+
+const ArchivePasswordModal: React.FC<{
+  fileName: string;
+  invalidPassword: boolean;
+  onConfirm: (password: string) => void;
+  onCancel: () => void;
+  lang: string;
+}> = ({ fileName, invalidPassword, onConfirm, onCancel, lang }) => {
+  const [password, setPassword] = useState('');
+  const submit = () => {
+    if (password) onConfirm(password);
+  };
+
+  return <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/75 p-4">
+    <div className="w-full max-w-sm space-y-4 rounded-lg bg-gray-200 p-8 shadow-xl dark:bg-gray-800">
+      <h2 className="text-2xl font-bold text-cyan-600 dark:text-cyan-400">{t('archive_password_title', lang)}</h2>
+      <p className="text-sm text-gray-600 dark:text-gray-300">{t('archive_password_info', lang)} <span className="font-semibold">{fileName}</span></p>
+      {invalidPassword && <p className="text-sm text-red-600 dark:text-red-400">{t('archive_password_invalid', lang)}</p>}
+      <label htmlFor="archive-password-input" className="block text-sm font-medium text-gray-700 dark:text-gray-300">{t('password_label', lang)}</label>
+      <input
+        id="archive-password-input"
+        type="password"
+        value={password}
+        onChange={event => setPassword(event.target.value)}
+        onKeyDown={event => event.key === 'Enter' && submit()}
+        className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-cyan-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
+        autoFocus
+      />
+      <div className="flex justify-end gap-3">
+        <button onClick={onCancel} className="rounded bg-gray-500 px-4 py-2 font-bold text-white hover:bg-gray-600">{t('cancel', lang)}</button>
+        <button onClick={submit} disabled={!password} className="rounded bg-cyan-500 px-4 py-2 font-bold text-white hover:bg-cyan-600 disabled:opacity-50">{t('continue', lang)}</button>
+      </div>
+    </div>
+  </div>;
 };
 
 const VaultSetupModal: React.FC<{ onConfirm: (password: string, quotaGb: number) => Promise<void>; onCancel: () => void }> = ({ onConfirm, onCancel }) => {
@@ -453,6 +535,7 @@ const App: React.FC = () => {
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [isVaultPasswordModalOpen, setIsVaultPasswordModalOpen] = useState(false);
+  const [archivePasswordPrompt, setArchivePasswordPrompt] = useState<{ fileName: string; invalidPassword: boolean } | null>(null);
   const [vaultPasswordAction, setVaultPasswordAction] = useState<'save' | 'browse'>('save');
   const [isVaultSetupModalOpen, setIsVaultSetupModalOpen] = useState(false);
   const [showEncryptionInfo, setShowEncryptionInfo] = useState(false);
@@ -478,6 +561,8 @@ const App: React.FC = () => {
   const [zipDestination, setZipDestination] = useState<'folder' | 'vault'>('folder');
   const [deleteSources, setDeleteSources] = useState(() => localStorage.getItem('delete-sources') === 'true');
   const pendingSourceDeletionsRef = useRef<string[]>([]);
+  const archivePasswordResolverRef = useRef<((password: string | null) => void) | null>(null);
+  const archivePasswordQueueRef = useRef<Promise<void>>(Promise.resolve());
   const [wallpaper, setWallpaper] = useState<{ enabled: boolean; path: string | null; type: 'image' | 'video' | null; dataUrl: string | null; videoUrl: string | null }>({ enabled: false, path: null, type: null, dataUrl: null, videoUrl: null });
   const [wallpaperVideoError, setWallpaperVideoError] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(() => localStorage.getItem('onboarding-complete') !== 'true');
@@ -485,12 +570,12 @@ const App: React.FC = () => {
   const [gpuToast, setGpuToast] = useState<string | null>(null);
   const [availableUpdate, setAvailableUpdate] = useState<AvailableUpdate | null>(null);
   const [isInstallingUpdate, setIsInstallingUpdate] = useState(false);
-  const [isStalled, setIsStalled] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const cancelRequestedRef = useRef(false);
   const ffmpegRef = useRef<any>(null);
   const ffmpegLoadingRef = useRef<boolean>(false);
   const dragPreviewSignatureRef = useRef('');
   const dragEnterDepthRef = useRef(0);
-  const lastProgressAtRef = useRef<number>(Date.now());
   const batchStartedAtRef = useRef<number | null>(null);
   const MAX_CONCURRENT_CONVERSIONS = 4;
 
@@ -512,7 +597,43 @@ const App: React.FC = () => {
 
   useEffect(() => {
     localStorage.setItem('language', language);
+    (window as any).electronAPI?.setCrashLogLanguage?.(language).catch((error: unknown) => {
+      console.error('Failed to set crash log language', error);
+    });
   }, [language]);
+
+  useEffect(() => {
+    const onError = (event: ErrorEvent) => {
+      writeRendererCrashLog({
+        event: 'rendererException',
+        functionName: 'window.error',
+        fileName: event.filename ? event.filename.split(/[\\/]/).pop() : undefined,
+        details: `${event.lineno || 0}:${event.colno || 0}`,
+        error: {
+          name: event.error?.name || 'Error',
+          message: event.message || String(event.error || 'Unknown renderer error'),
+          stack: event.error?.stack,
+        },
+      });
+    };
+    const onUnhandledRejection = (event: PromiseRejectionEvent) => {
+      const reason = event.reason;
+      writeRendererCrashLog({
+        event: 'rendererRejection',
+        functionName: 'window.unhandledrejection',
+        error: reason instanceof Error
+          ? { name: reason.name, message: reason.message, stack: reason.stack }
+          : { name: 'UnhandledRejection', message: String(reason) },
+      });
+    };
+
+    window.addEventListener('error', onError);
+    window.addEventListener('unhandledrejection', onUnhandledRejection);
+    return () => {
+      window.removeEventListener('error', onError);
+      window.removeEventListener('unhandledrejection', onUnhandledRejection);
+    };
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('ui-transparency', String(uiTransparency));
@@ -551,20 +672,6 @@ const App: React.FC = () => {
       setIsInstallingUpdate(false);
     }
   };
-
-  useEffect(() => {
-    if (!isConverting) {
-      setIsStalled(false);
-      setBatchEtaSeconds(null);
-      return;
-    }
-
-    const timer = window.setInterval(() => {
-      setIsStalled(Date.now() - lastProgressAtRef.current > 60000);
-    }, 2000);
-
-    return () => window.clearInterval(timer);
-  }, [isConverting]);
 
   useEffect(() => {
     if (!isConverting || !batchStartedAtRef.current || convertedCount <= 0 || totalToConvert <= convertedCount) {
@@ -668,8 +775,11 @@ const App: React.FC = () => {
   const downloadVaultFile = async (file: { storageName: string; fileName: string }) => {
     if (!vaultPassword) return;
     try {
-      const result = await (window as any).electronAPI.readVaultFile({ storageName: file.storageName, password: vaultPassword });
-      await (window as any).electronAPI.saveFile({ data: result.data, fileName: result.fileName });
+      await (window as any).electronAPI.exportVaultFile({
+        storageName: file.storageName,
+        fileName: file.fileName,
+        password: vaultPassword,
+      });
     } catch (error: any) {
       alert(error?.message || 'Het bestand kon niet uit de kluis worden gelezen.');
     }
@@ -738,7 +848,6 @@ const App: React.FC = () => {
   }), [files]);
   
   const updateFileState = useCallback((id: string, newProps: Partial<ConversionFile>) => {
-    lastProgressAtRef.current = Date.now();
     setFiles(prevFiles =>
       prevFiles.map(f => (f.id === id ? { ...f, ...newProps } : f))
     );
@@ -850,33 +959,56 @@ const App: React.FC = () => {
     }
   };
 
+  const requestArchivePassword = useCallback((fileName: string, invalidPassword: boolean) => {
+    let resolvePassword: (password: string | null) => void = () => undefined;
+    const passwordPromise = new Promise<string | null>(resolve => {
+      resolvePassword = resolve;
+    });
+
+    const showPrompt = () => new Promise<void>(resolvePrompt => {
+      archivePasswordResolverRef.current = password => {
+        resolvePassword(password);
+        resolvePrompt();
+      };
+      setArchivePasswordPrompt({ fileName, invalidPassword });
+    });
+    archivePasswordQueueRef.current = archivePasswordQueueRef.current.then(showPrompt);
+    return passwordPromise;
+  }, []);
+
+  const resolveArchivePasswordPrompt = useCallback((password: string | null) => {
+    const resolvePassword = archivePasswordResolverRef.current;
+    archivePasswordResolverRef.current = null;
+    setArchivePasswordPrompt(null);
+    resolvePassword?.(password);
+  }, []);
+
   const removeFile = useCallback((id: string) => {
     setFiles(prev => prev.filter(f => f.id !== id));
   }, []);
   
-  const handleCancelConversion = useCallback(() => {
-    if (!isConverting) return;
+  const handleCancelConversion = useCallback(async () => {
+    if (!isConverting || isCancelling) return;
+    cancelRequestedRef.current = true;
+    setIsCancelling(true);
+    resolveArchivePasswordPrompt(null);
 
-    setFiles(prevFiles => prevFiles.map(file => (
-      file.status === 'reading' || file.status === 'converting'
-        ? { ...file, status: 'error', error: 'Conversion cancelled by the user.' }
-        : file
-    )));
-
-    (window as any).electronAPI?.cancelConversion?.().catch(() => undefined);
-    setIsConverting(false);
-    setIsStalled(false);
-    lastProgressAtRef.current = Date.now();
-  }, [isConverting]);
+    try {
+      await (window as any).electronAPI?.cancelConversion?.();
+    } catch (error) {
+      console.error('Failed to cancel active conversion processes', error);
+      alert('Could not stop the active conversion process. The remaining queued files will still be skipped.');
+    }
+  }, [isCancelling, isConverting, resolveArchivePasswordPrompt]);
 
   const handleConvertAll = async () => {
     if (isConverting) return;
+    cancelRequestedRef.current = false;
+    setIsCancelling(false);
     pendingSourceDeletionsRef.current = [];
     setIsConverting(true);
     setConvertedCount(0);
     setBatchEtaSeconds(null);
-    setIsStalled(false);
-    lastProgressAtRef.current = Date.now();
     batchStartedAtRef.current = Date.now();
 
     const electronApi = (window as any).electronAPI;
@@ -890,17 +1022,64 @@ const App: React.FC = () => {
     const filesToConvert = files.filter(f => f.status === 'pending' && f.targetFormat && !(combineToPdf && pdfImageFiles.includes(f)));
     const total = (combineToPdf && pdfImageFiles.length > 1 ? 1 : 0) + filesToConvert.length;
     setTotalToConvert(total);
+    await electronApi?.beginOperationLogBatch?.();
+    writeRendererCrashLog({
+      event: 'conversionStarted',
+      functionName: 'handleConvertAll',
+      count: filesToConvert.length + ((combineToPdf && pdfImageFiles.length > 1) ? pdfImageFiles.length : 0),
+    });
     let currentConverted = 0;
-    const conversionTimings: Array<{ fileName: string; seconds: number; status: 'success' | 'error' }> = [];
+    let succeededFileCount = 0;
+    let failedFileCount = 0;
+    const conversionTimings: Array<{
+      fileName: string;
+      fileSize: number;
+      fromFormat: string;
+      toFormat: string;
+      functionName: string;
+      seconds: number;
+      status: 'success' | 'error';
+      failure?: { message: string; stack?: string };
+    }> = [];
+    const addConversionTiming = (
+      file: File,
+      targetFormat: ConversionTarget | null,
+      seconds: number,
+      status: 'success' | 'error',
+      failure?: { message: string; stack?: string },
+      functionName?: string,
+    ) => {
+      const mediaType = getMediaType(file);
+      conversionTimings.push({
+        fileName: file.name,
+        fileSize: file.size,
+        fromFormat: getSourceExtension(file).toUpperCase() || 'UNKNOWN',
+        toFormat: targetFormat || 'UNKNOWN',
+        functionName: functionName || (mediaType.isArchive && targetFormat === ConversionTarget.EXTRACT
+          ? 'fcp:extract-archive'
+          : mediaType.isAudio || mediaType.isVideo ? 'fcp:convert-media' : 'convertSingleFile'),
+        seconds,
+        status,
+        failure,
+      });
+    };
     const combinedConversionStartedAt = performance.now();
     let combinedConversionSucceeded = false;
+    let combinedConversionError: { message: string; stack?: string } | undefined;
 
     if (combineToPdf && pdfImageFiles.length > 1) {
       try {
+        writeRendererCrashLog({
+          event: 'operationStarted',
+          functionName: 'combineImagesToPdf',
+          fileNames: pdfImageFiles.map(file => file.file.name),
+          count: pdfImageFiles.length,
+        });
         const doc = new jsPDF();
         pdfImageFiles.forEach(() => doc.deletePage(1)); // Clear initial page
   
         for (let i = 0; i < pdfImageFiles.length; i++) {
+          if (cancelRequestedRef.current) throw new Error('Conversion cancelled by the user.');
           const fileItem = pdfImageFiles[i];
           updateFileState(fileItem.id, { status: 'converting', progress: Math.round((i / pdfImageFiles.length) * 100) });
           
@@ -927,8 +1106,9 @@ const App: React.FC = () => {
             URL.revokeObjectURL(imageUrl);
           }
         }
-  
+
         const combinedPdfBlob = doc.output('blob');
+        if (cancelRequestedRef.current) throw new Error('Conversion cancelled by the user.');
         const url = URL.createObjectURL(combinedPdfBlob);
   
         // Create a virtual file to represent the combined PDF
@@ -945,16 +1125,41 @@ const App: React.FC = () => {
         // Mark original files as success
         pdfImageFiles.forEach(f => updateFileState(f.id, { status: 'success', progress: 100, convertedFileUrl: '#' })); // Use # to indicate it's part of a combo
         combinedConversionSucceeded = true;
+        succeededFileCount += pdfImageFiles.length;
         currentConverted++;
         setConvertedCount(currentConverted);
+        writeRendererCrashLog({
+          event: 'operationCompleted',
+          functionName: 'combineImagesToPdf',
+          fileName: 'combined_document.pdf',
+          count: pdfImageFiles.length,
+          status: 'success',
+        });
       } catch(err: any) {
+         combinedConversionError = { message: err?.message || String(err), stack: err?.stack };
          pdfImageFiles.forEach(f => updateFileState(f.id, { status: 'error', error: String(err) }));
+         if (!cancelRequestedRef.current) failedFileCount += pdfImageFiles.length;
+         await writeRendererCrashLog({
+           event: 'operationFailed',
+           functionName: 'combineImagesToPdf',
+           fileNames: pdfImageFiles.map(file => file.file.name),
+           status: 'failed',
+           error: { name: err?.name || 'Error', message: err?.message || String(err), stack: err?.stack },
+         });
          currentConverted++;
          setConvertedCount(currentConverted);
       }
     }
     if (combineToPdf && pdfImageFiles.length > 1) {
-      conversionTimings.push({ fileName: 'combined_document.pdf', seconds: (performance.now() - combinedConversionStartedAt) / 1000, status: combinedConversionSucceeded ? 'success' : 'error' });
+      const elapsedSeconds = (performance.now() - combinedConversionStartedAt) / 1000;
+      pdfImageFiles.forEach(fileItem => addConversionTiming(
+        fileItem.file,
+        ConversionTarget.PDF,
+        elapsedSeconds / pdfImageFiles.length,
+        combinedConversionSucceeded ? 'success' : 'error',
+        combinedConversionError,
+        'combineImagesToPdf',
+      ));
     }
   
     let completedCount = currentConverted;
@@ -962,6 +1167,12 @@ const App: React.FC = () => {
 
     const convertSingleFile = async (fileItem: ConversionFile) => {
       const conversionStartedAt = performance.now();
+      writeRendererCrashLog({
+        event: 'operationStarted',
+        functionName: 'convertSingleFile',
+        fileName: fileItem.file.name,
+        format: fileItem.targetFormat || 'unknown',
+      });
       updateFileState(fileItem.id, { status: 'reading', readProgress: 0, progress: 0, error: null });
 
       const { id, file, targetFormat } = fileItem;
@@ -982,15 +1193,37 @@ const App: React.FC = () => {
             console.warn(`Could not stage ${file.name}; using the selected file instead.`, stageError);
           }
         }
+        if (cancelRequestedRef.current) throw new Error('Conversion cancelled by the user.');
         if (isArchive && targetFormat === ConversionTarget.EXTRACT) {
           if (!stagedPath || !electronApi?.extractArchive) throw new Error('Archive extraction is unavailable in this app build.');
           updateFileState(id, { status: 'converting', progress: 5 });
-          const extractionPath = await electronApi.extractArchive(stagedPath, vaultStatus.enabled ? undefined : outputDirectory || undefined, file.name);
+          let archivePassword: string | undefined;
+          let extractionResult: string | { passwordRequired: true; invalidPassword?: boolean };
+          while (true) {
+            extractionResult = await electronApi.extractArchive(
+              stagedPath,
+              vaultStatus.enabled ? undefined : outputDirectory || undefined,
+              file.name,
+              archivePassword,
+            );
+            if (typeof extractionResult === 'string') break;
+            const enteredPassword = await requestArchivePassword(file.name, Boolean(extractionResult.invalidPassword));
+            if (!enteredPassword) throw new Error('Archive extraction cancelled by the user.');
+            archivePassword = enteredPassword;
+          }
+          const extractionPath = extractionResult;
           updateFileState(id, { convertedFileUrl: '#', outputPath: extractionPath, status: 'success', progress: 100 });
           if (deleteSources && sourcePath && !pendingSourceDeletionsRef.current.includes(sourcePath)) {
             pendingSourceDeletionsRef.current.push(sourcePath);
           }
-          conversionTimings.push({ fileName: file.name, seconds: (performance.now() - conversionStartedAt) / 1000, status: 'success' });
+          addConversionTiming(file, targetFormat, (performance.now() - conversionStartedAt) / 1000, 'success');
+          succeededFileCount += 1;
+          writeRendererCrashLog({
+            event: 'operationCompleted',
+            functionName: 'convertSingleFile',
+            fileName: file.name,
+            status: 'success',
+          });
           return;
         }
         let convertedBlob: Blob;
@@ -1047,6 +1280,7 @@ const App: React.FC = () => {
           throw new Error('Unsupported file type or target format.');
         }
 
+        if (cancelRequestedRef.current) throw new Error('Conversion cancelled by the user.');
         const url = URL.createObjectURL(convertedBlob);
         updateFileState(id, { convertedFileUrl: url, status: 'success', progress: 100 });
 
@@ -1054,11 +1288,29 @@ const App: React.FC = () => {
           pendingSourceDeletionsRef.current.push(sourcePath);
         }
 
-        conversionTimings.push({ fileName: file.name, seconds: (performance.now() - conversionStartedAt) / 1000, status: 'success' });
+        addConversionTiming(file, targetFormat, (performance.now() - conversionStartedAt) / 1000, 'success');
+        succeededFileCount += 1;
+        writeRendererCrashLog({
+          event: 'operationCompleted',
+          functionName: 'convertSingleFile',
+          fileName: file.name,
+          status: 'success',
+        });
       } catch (err: any) {
         const message = String(err);
         updateFileState(id, { error: message, status: 'error' });
-        conversionTimings.push({ fileName: file.name, seconds: (performance.now() - conversionStartedAt) / 1000, status: 'error' });
+        addConversionTiming(file, targetFormat, (performance.now() - conversionStartedAt) / 1000, 'error', {
+          message: err?.message || message,
+          stack: err?.stack,
+        });
+        if (!cancelRequestedRef.current) failedFileCount += 1;
+        await writeRendererCrashLog({
+          event: 'operationFailed',
+          functionName: 'convertSingleFile',
+          fileName: file.name,
+          status: cancelRequestedRef.current ? 'cancelled' : 'failed',
+          error: { name: err?.name || 'Error', message: err?.message || message, stack: err?.stack },
+        });
       } finally {
         if (stagedPath) await electronApi.cleanupStagedFile(stagedPath).catch(() => undefined);
         completedCount += 1;
@@ -1068,6 +1320,7 @@ const App: React.FC = () => {
 
     const workers = Array.from({ length: Math.min(MAX_CONCURRENT_CONVERSIONS, queue.length) }, async () => {
       while (queue.length > 0) {
+        if (cancelRequestedRef.current) break;
         const nextFile = queue.shift();
         if (!nextFile) break;
         await convertSingleFile(nextFile);
@@ -1096,7 +1349,57 @@ const App: React.FC = () => {
     } catch (error) {
       console.warn('Could not write debug.txt', error);
     }
+    const batchStatus = cancelRequestedRef.current ? 'cancelled' : failedFileCount ? 'failed' : 'success';
+    await writeRendererCrashLog({
+      event: 'conversionCompleted',
+      functionName: 'handleConvertAll',
+      count: filesToConvert.length + ((combineToPdf && pdfImageFiles.length > 1) ? pdfImageFiles.length : 0),
+      succeededCount: succeededFileCount,
+      failedCount: failedFileCount,
+      status: batchStatus,
+    });
+    const conversionGroups = Array.from(conversionTimings.reduce((groups, item) => {
+      const key = `${item.fromFormat}\u0000${item.toFormat}`;
+      const group = groups.get(key) || {
+        fromFormat: item.fromFormat,
+        toFormat: item.toFormat,
+        functionName: item.functionName,
+        fileNames: [],
+        count: 0,
+        totalBytes: 0,
+        status: 'success' as 'success' | 'failed',
+        failures: [] as Array<{ message: string; stack?: string }>,
+      };
+      group.fileNames.push(item.fileName);
+      group.count += 1;
+      group.totalBytes += item.fileSize;
+      if (item.status === 'error') group.status = 'failed';
+      if (item.failure && !group.failures.some(failure => failure.message === item.failure?.message)) {
+        group.failures.push(item.failure);
+      }
+      groups.set(key, group);
+      return groups;
+    }, new Map<string, {
+      fromFormat: string;
+      toFormat: string;
+      functionName: string;
+      fileNames: string[];
+      count: number;
+      totalBytes: number;
+      status: 'success' | 'failed';
+      failures: Array<{ message: string; stack?: string }>;
+    }>()).values()).map(group => ({
+      ...group,
+      fileName: group.count === 1 ? group.fileNames[0] : undefined,
+    }));
+    await electronApi?.completeOperationLogBatch?.(batchStatus, {
+      startedAt: new Date(batchStartedAtRef.current || Date.now()).toISOString(),
+      finishedAt: finishedAt.toISOString(),
+      groups: conversionGroups,
+    });
     setIsConverting(false);
+    setIsCancelling(false);
+    cancelRequestedRef.current = false;
     batchStartedAtRef.current = null;
   };
 
@@ -1300,6 +1603,16 @@ const App: React.FC = () => {
 
     let zipWriter: any = null;
     let zipFilePath = '';
+    let zipExportError: unknown;
+    let zipExportSucceeded = false;
+    let zipExportCancelled = false;
+    const zipFileNameToSave = `${zipFileName || 'converted-files'}.zip`;
+    writeRendererCrashLog({
+      event: 'zipStarted',
+      functionName: 'createAndDownloadZip',
+      count: successfulConversions.length,
+      destination,
+    });
 
     try {
         const electronApi = (window as any).electronAPI;
@@ -1360,6 +1673,13 @@ const App: React.FC = () => {
               usedPaths.add(finalFileName);
             } catch (error: any) {
               console.error(`Failed to add ${fileItem.file.name} to zip:`, error);
+              writeRendererCrashLog({
+                event: 'operationFailed',
+                functionName: 'createAndDownloadZip',
+                fileName: fileItem.file.name,
+                status: 'failed',
+                error: { name: error?.name || 'Error', message: error?.message || String(error), stack: error?.stack },
+              });
               throw new Error(`Could not add "${fileItem.file.name}" to the ZIP: ${error?.message || String(error)}`);
             }
             setZipProgress({ completed: fileIndex + 1, total: successfulConversions.length, currentFile: fileItem.file.name });
@@ -1369,23 +1689,30 @@ const App: React.FC = () => {
         await zipWriter.close();
         zipWriter = null; 
         setZipProgress({ completed: successfulConversions.length, total: successfulConversions.length, currentFile: '' });
-        const zipFileNameToSave = `${zipFileName || 'converted-files'}.zip`;
         
         if (destination === 'vault') {
-          await electronApi.saveVaultFile({ filePath: zipFilePath, fileName: zipFileNameToSave, password: password || '' });
+          await electronApi.saveVaultFile({
+            filePath: zipFilePath,
+            fileName: zipFileNameToSave,
+            password: password || '',
+            count: successfulConversions.length,
+          });
         } else {
-          await electronApi.saveFile({ filePath: zipFilePath, fileName: zipFileNameToSave, outputDirectory: outputDirectory || undefined });
+          const savedPath = await electronApi.saveFile({ filePath: zipFilePath, fileName: zipFileNameToSave, outputDirectory: outputDirectory || undefined });
+          zipExportCancelled = savedPath === null;
         }
+        zipExportSucceeded = !zipExportCancelled;
 
-        if (deleteSources && pendingSourceDeletionsRef.current.length > 0) {
+        if (zipExportSucceeded && deleteSources && pendingSourceDeletionsRef.current.length > 0) {
           await handlePendingSourceDeletion();
         }
 
-        if (password) {
+        if (zipExportSucceeded && password) {
             setShowEncryptionInfo(true);
         }
 
     } catch (err: any) {
+        zipExportError = err;
         console.error("Error creating ZIP file", err);
       alert(`An error occurred while creating the ZIP file: ${err?.message || String(err)}`);
     } finally {
@@ -1399,6 +1726,16 @@ const App: React.FC = () => {
             console.warn('Could not clean up temporary ZIP file:', error);
           }
         }
+        writeRendererCrashLog({
+          event: 'zipCompleted',
+          functionName: 'createAndDownloadZip',
+          fileName: zipFileNameToSave,
+          count: successfulConversions.length,
+          status: zipExportSucceeded ? 'success' : zipExportCancelled ? 'cancelled' : 'failed',
+          error: zipExportError instanceof Error
+            ? { name: zipExportError.name, message: zipExportError.message, stack: zipExportError.stack }
+            : zipExportError ? String(zipExportError) : undefined,
+        });
     }
   };
 
@@ -1618,6 +1955,13 @@ const App: React.FC = () => {
       )}
       {showOnboarding && <OnboardingModal language={language} onLanguageChange={setLanguage} onComplete={() => { localStorage.setItem('onboarding-complete', 'true'); setShowOnboarding(false); }} />}
       {availableUpdate && !showOnboarding && <UpdateModal update={availableUpdate} lang={language} onUpdate={installUpdate} onLater={() => setAvailableUpdate(null)} isInstalling={isInstallingUpdate} />}
+      {archivePasswordPrompt && <ArchivePasswordModal
+        fileName={archivePasswordPrompt.fileName}
+        invalidPassword={archivePasswordPrompt.invalidPassword}
+        onConfirm={password => resolveArchivePasswordPrompt(password)}
+        onCancel={() => resolveArchivePasswordPrompt(null)}
+        lang={language}
+      />}
       {gpuToast && !showOnboarding && (
         <div className="fixed left-4 top-4 z-40 max-w-xs rounded-lg border border-green-500/40 bg-gray-900/90 px-3 py-2 text-sm text-white shadow-lg backdrop-blur-sm">
           <div className="flex items-start gap-2">
@@ -1719,8 +2063,8 @@ const App: React.FC = () => {
                 <button onClick={handleConvertAll} disabled={convertAllDisabled} className="bg-green-500 text-white font-bold py-2 px-4 rounded hover:bg-green-600 disabled:bg-gray-500 disabled:cursor-not-allowed transition">
                   {getConvertAllButtonText()}
                 </button>
-                {isConverting && isStalled && (
-                  <button onClick={handleCancelConversion} className="bg-red-500 text-white font-bold py-2 px-4 rounded hover:bg-red-600 transition">
+                {isConverting && (
+                  <button onClick={handleCancelConversion} disabled={isCancelling} className="bg-red-500 text-white font-bold py-2 px-4 rounded hover:bg-red-600 disabled:bg-gray-500 transition">
                     {t('cancel_conversion', language)}
                   </button>
                 )}

@@ -1,7 +1,7 @@
 {
   "name": "bestandsconverter",
   "private": true,
-  "version": "1.2.3",
+  "version": "1.2.4",
   "type": "module",
   "main": "electron-main.cjs",
   "description": "Offline bestandsconverter voor afbeeldingen, audio, video en PDF.",
@@ -56,11 +56,11 @@
     "autoprefixer": "^10.6.0",
     "concurrently": "^10.0.5",
     "electron": "^44.4.5",
-    "electron-builder": "^26.17.0",
+    "electron-builder": "^26.18.0",
     "postcss": "^8.5.29",
     "tailwindcss": "^4.3.3",
     "typescript": "~7.0.2",
-    "vite": "^8.3.1"
+    "vite": "^8.3.5"
   },
   "build": {
     "appId": "com.fcp.fileconverter",

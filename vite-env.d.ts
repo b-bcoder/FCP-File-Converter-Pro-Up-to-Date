@@ -40,6 +40,38 @@ declare global {
       onTranscriptionProgress: (callback: (progress: number) => void) => () => void;
       readFile: (filePath: string) => Promise<ArrayBuffer>;
       writeFile: (filePath: string, data: ArrayBuffer) => Promise<boolean>;
+      setCrashLogLanguage: (language: string) => Promise<boolean>;
+      beginOperationLogBatch: () => Promise<boolean>;
+      completeOperationLogBatch: (status: 'success' | 'failed' | 'cancelled', summary: {
+        startedAt: string;
+        finishedAt: string;
+        groups: Array<{
+          fromFormat: string;
+          toFormat: string;
+          functionName: string;
+          fileNames: string[];
+          fileName?: string;
+          count: number;
+          totalBytes: number;
+          status: 'success' | 'failed';
+          failures: Array<{ message: string; stack?: string }>;
+        }>;
+      }) => Promise<boolean>;
+      writeCrashLog: (record: {
+        event: string;
+        functionName?: string;
+        fileName?: string;
+        fileNames?: string[];
+        count?: number;
+        succeededCount?: number;
+        failedCount?: number;
+        format?: string;
+        destination?: string;
+        status?: string;
+        details?: string;
+        reason?: string;
+        error?: { name?: string; message?: string; stack?: string; exitCode?: number; stderr?: string } | string;
+      }) => Promise<boolean>;
       stageFile: (fileData: ArrayBuffer | string, fileName: string) => Promise<string>;
       cleanupStagedFile: (filePath: string) => Promise<boolean>;
       deleteSourceFile: (filePath: string) => Promise<boolean>;
@@ -48,10 +80,11 @@ declare global {
       getVaultStatus: () => Promise<{ enabled: boolean; outputDirectory?: string; quotaBytes?: number }>;
       createVault: (options: { outputDirectory: string; password: string; quotaGb: number }) => Promise<{ enabled: boolean; outputDirectory: string; quotaBytes: number }>;
       disableVault: () => Promise<boolean>;
-      saveVaultFile: (options: { data: ArrayBuffer; fileName: string; password: string }) => Promise<{ storagePath: string; bytes: number }>;
+      saveVaultFile: (options: { data?: ArrayBuffer; filePath?: string; fileName: string; password: string; count?: number }) => Promise<{ storagePath: string; bytes: number }>;
       listVaultFiles: (options: { password: string }) => Promise<Array<{ storageName: string; fileName: string; bytes: number; modifiedAt: number }>>;
-      readVaultFile: (options: { storageName: string; password: string }) => Promise<{ fileName: string; data: ArrayBuffer }>;
+      exportVaultFile: (options: { storageName: string; fileName: string; password: string }) => Promise<string | null>;
       deleteVaultFile: (options: { storageName: string; password: string }) => Promise<boolean>;
+      extractArchive: (filePath: string, outputDirectory?: string, fileName?: string, password?: string) => Promise<string | { passwordRequired: true; invalidPassword?: boolean }>;
     };
   }
 }

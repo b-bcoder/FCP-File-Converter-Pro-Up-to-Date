@@ -195,6 +195,14 @@ function createWindow() {
       window.setFullScreen(!window.isFullScreen());
     }
   });
+  window.webContents.on('render-process-gone', (_event, details) => {
+    void finishOperationLogBatch('failed', {
+        event: 'rendererCrash',
+        functionName: 'webContents.render-process-gone',
+        reason: details.reason,
+        exitCode: details.exitCode,
+      });
+  });
 
   if (isDevelopment) {
     loadDevelopmentPage(window);
@@ -245,10 +253,519 @@ function createWindow() {
 
 const wallpaperConfigPath = path.join(app.getPath('userData'), 'config.json');
 const vaultConfigPath = path.join(app.getPath('userData'), 'vault-config.json');
-let activeConversionProcess = null;
+const crashLogLanguagePath = path.join(app.getPath('userData'), 'crash-log-language.json');
+const activeConversionProcesses = new Set();
+const cancelledConversionProcesses = new WeakSet();
+let conversionCancellationGeneration = 0;
+let crashLogLanguage = 'en';
+let crashLogWriteQueue = Promise.resolve();
+let activeOperationLogBatch = null;
+
+const crashLogTranslations = {
+  en: {
+    header: 'File Converter Pro diagnostic log',
+    successHeader: 'File Converter Pro success log',
+    date: 'Date', duration: 'Duration', fileSize: 'File size', fromFormat: 'FromFormat', toFormat: 'ToFormat',
+    mediaConversion: 'Media conversion',
+    time: 'Time', event: 'Event', function: 'Function', file: 'File', files: 'Files',
+    count: 'File count', succeededCount: 'Succeeded', failedCount: 'Failed', format: 'Format', destination: 'Destination',
+    status: 'Status', error: 'Error', stack: 'Stack trace', exitCode: 'Process exit code',
+    stderr: 'Process stderr', details: 'Details', reason: 'Reason',
+    unexpectedException: 'Unexpected main-process exception', unhandledRejection: 'Unhandled promise rejection',
+    rendererCrash: 'Renderer process crashed', rendererException: 'Unexpected renderer error',
+    rendererRejection: 'Unhandled renderer promise rejection', childProcessCrash: 'Child process crashed',
+    operationStarted: 'Operation started', operationCompleted: 'Operation completed',
+    operationFailed: 'Operation failed', conversionStarted: 'Conversion batch started',
+    conversionCompleted: 'Conversion batch completed', zipStarted: 'ZIP creation started',
+    zipCompleted: 'ZIP creation completed', vaultExportStarted: 'Vault export started',
+    vaultExportCompleted: 'Vault export completed', vaultSaveStarted: 'Vault save started',
+    vaultSaveCompleted: 'Vault save completed', mediaStarted: 'Media conversion started',
+    mediaCompleted: 'Media conversion completed', archiveStarted: 'Archive extraction started',
+    archiveCompleted: 'Archive extraction completed', folderCompressionStarted: 'Folder compression started',
+    folderCompressionCompleted: 'Folder compression completed',
+    success: 'Success', failed: 'Failed', cancelled: 'Cancelled', unknown: 'Unknown',
+  },
+  nl: {
+    header: 'Diagnoselogboek van File Converter Pro',
+    successHeader: 'Succeslogboek van File Converter Pro',
+    date: 'Datum', duration: 'Duur', fileSize: 'Bestandsgrootte', fromFormat: 'Van formaat', toFormat: 'Naar formaat',
+    mediaConversion: 'Mediaconversie',
+    time: 'Tijdstip', event: 'Gebeurtenis', function: 'Functie', file: 'Bestand', files: 'Bestanden',
+    count: 'Aantal bestanden', succeededCount: 'Geslaagd', failedCount: 'Mislukt', format: 'Formaat', destination: 'Bestemming',
+    status: 'Status', error: 'Foutmelding', stack: 'Stacktrace', exitCode: 'Procesafsluitcode',
+    stderr: 'Proces-stderr', details: 'Details', reason: 'Reden',
+    unexpectedException: 'Onverwachte fout in hoofdproces', unhandledRejection: 'Niet-afgevangen promise-afwijzing',
+    rendererCrash: 'Rendererproces is gecrasht', rendererException: 'Onverwachte fout in renderer',
+    rendererRejection: 'Niet-afgevangen promise-afwijzing in renderer', childProcessCrash: 'Onderliggend proces is gecrasht',
+    operationStarted: 'Bewerking gestart', operationCompleted: 'Bewerking voltooid',
+    operationFailed: 'Bewerking mislukt', conversionStarted: 'Conversiebatch gestart',
+    conversionCompleted: 'Conversiebatch voltooid', zipStarted: 'ZIP-aanmaak gestart',
+    zipCompleted: 'ZIP-aanmaak voltooid', vaultExportStarted: 'Kluisexport gestart',
+    vaultExportCompleted: 'Kluisexport voltooid', vaultSaveStarted: 'Opslaan in kluis gestart',
+    vaultSaveCompleted: 'Opslaan in kluis voltooid', mediaStarted: 'Mediaconversie gestart',
+    mediaCompleted: 'Mediaconversie voltooid', archiveStarted: 'Archief uitpakken gestart',
+    archiveCompleted: 'Archief uitpakken voltooid', folderCompressionStarted: 'Mapcompressie gestart',
+    folderCompressionCompleted: 'Mapcompressie voltooid',
+    success: 'Geslaagd', failed: 'Mislukt', cancelled: 'Geannuleerd', unknown: 'Onbekend',
+  },
+  de: {
+    header: 'Diagnoseprotokoll von File Converter Pro',
+    successHeader: 'Erfolgsprotokoll von File Converter Pro',
+    date: 'Datum', duration: 'Dauer', fileSize: 'Dateigröße', fromFormat: 'Ausgangsformat', toFormat: 'Zielformat',
+    mediaConversion: 'Medienkonvertierung',
+    time: 'Zeitpunkt', event: 'Ereignis', function: 'Funktion', file: 'Datei', files: 'Dateien',
+    count: 'Dateianzahl', succeededCount: 'Erfolgreich', failedCount: 'Fehlgeschlagen', format: 'Format', destination: 'Ziel',
+    status: 'Status', error: 'Fehlermeldung', stack: 'Stacktrace', exitCode: 'Prozess-Exitcode',
+    stderr: 'Prozess-stderr', details: 'Details', reason: 'Ursache',
+    unexpectedException: 'Unerwarteter Fehler im Hauptprozess', unhandledRejection: 'Nicht behandelte Promise-Ablehnung',
+    rendererCrash: 'Renderer-Prozess abgestürzt', rendererException: 'Unerwarteter Renderer-Fehler',
+    rendererRejection: 'Nicht behandelte Promise-Ablehnung im Renderer', childProcessCrash: 'Unterprozess abgestürzt',
+    operationStarted: 'Vorgang gestartet', operationCompleted: 'Vorgang abgeschlossen',
+    operationFailed: 'Vorgang fehlgeschlagen', conversionStarted: 'Konvertierungsbatch gestartet',
+    conversionCompleted: 'Konvertierungsbatch abgeschlossen', zipStarted: 'ZIP-Erstellung gestartet',
+    zipCompleted: 'ZIP-Erstellung abgeschlossen', vaultExportStarted: 'Tresorexport gestartet',
+    vaultExportCompleted: 'Tresorexport abgeschlossen', vaultSaveStarted: 'Speichern im Tresor gestartet',
+    vaultSaveCompleted: 'Speichern im Tresor abgeschlossen', mediaStarted: 'Medienkonvertierung gestartet',
+    mediaCompleted: 'Medienkonvertierung abgeschlossen', archiveStarted: 'Archivextraktion gestartet',
+    archiveCompleted: 'Archivextraktion abgeschlossen', folderCompressionStarted: 'Ordnerkomprimierung gestartet',
+    folderCompressionCompleted: 'Ordnerkomprimierung abgeschlossen',
+    success: 'Erfolgreich', failed: 'Fehlgeschlagen', cancelled: 'Abgebrochen', unknown: 'Unbekannt',
+  },
+  fr: {
+    header: 'Journal de diagnostic de File Converter Pro',
+    successHeader: 'Journal de réussite de File Converter Pro',
+    date: 'Date', duration: 'Durée', fileSize: 'Taille du fichier', fromFormat: 'Format source', toFormat: 'Format cible',
+    mediaConversion: 'Conversion multimédia',
+    time: 'Heure', event: 'Événement', function: 'Fonction', file: 'Fichier', files: 'Fichiers',
+    count: 'Nombre de fichiers', succeededCount: 'Réussis', failedCount: 'Échoués', format: 'Format', destination: 'Destination',
+    status: 'État', error: 'Erreur', stack: 'Trace de pile', exitCode: 'Code de sortie du processus',
+    stderr: 'stderr du processus', details: 'Détails', reason: 'Motif',
+    unexpectedException: 'Exception inattendue du processus principal', unhandledRejection: 'Promesse rejetée non gérée',
+    rendererCrash: 'Le processus de rendu a planté', rendererException: 'Erreur inattendue du moteur de rendu',
+    rendererRejection: 'Promesse rejetée non gérée dans le moteur de rendu', childProcessCrash: 'Un processus enfant a planté',
+    operationStarted: 'Opération démarrée', operationCompleted: 'Opération terminée',
+    operationFailed: 'Échec de l’opération', conversionStarted: 'Lot de conversions démarré',
+    conversionCompleted: 'Lot de conversions terminé', zipStarted: 'Création du ZIP démarrée',
+    zipCompleted: 'Création du ZIP terminée', vaultExportStarted: 'Exportation du coffre démarrée',
+    vaultExportCompleted: 'Exportation du coffre terminée', vaultSaveStarted: 'Enregistrement dans le coffre démarré',
+    vaultSaveCompleted: 'Enregistrement dans le coffre terminé', mediaStarted: 'Conversion multimédia démarrée',
+    mediaCompleted: 'Conversion multimédia terminée', archiveStarted: 'Extraction de l’archive démarrée',
+    archiveCompleted: 'Extraction de l’archive terminée', folderCompressionStarted: 'Compression du dossier démarrée',
+    folderCompressionCompleted: 'Compression du dossier terminée',
+    success: 'Réussi', failed: 'Échec', cancelled: 'Annulé', unknown: 'Inconnu',
+  },
+  tr: {
+    header: 'File Converter Pro tanılama günlüğü',
+    successHeader: 'File Converter Pro başarı günlüğü',
+    date: 'Tarih', duration: 'Süre', fileSize: 'Dosya boyutu', fromFormat: 'Kaynak biçim', toFormat: 'Hedef biçim',
+    mediaConversion: 'Medya dönüştürme',
+    time: 'Zaman', event: 'Olay', function: 'İşlev', file: 'Dosya', files: 'Dosyalar',
+    count: 'Dosya sayısı', succeededCount: 'Başarılı', failedCount: 'Başarısız', format: 'Biçim', destination: 'Hedef',
+    status: 'Durum', error: 'Hata', stack: 'Yığın izi', exitCode: 'Süreç çıkış kodu',
+    stderr: 'Süreç stderr', details: 'Ayrıntılar', reason: 'Neden',
+    unexpectedException: 'Ana süreçte beklenmeyen özel durum', unhandledRejection: 'İşlenmeyen promise reddi',
+    rendererCrash: 'Görüntüleyici süreci çöktü', rendererException: 'Görüntüleyicide beklenmeyen hata',
+    rendererRejection: 'Görüntüleyicide işlenmeyen promise reddi', childProcessCrash: 'Alt süreç çöktü',
+    operationStarted: 'İşlem başladı', operationCompleted: 'İşlem tamamlandı',
+    operationFailed: 'İşlem başarısız oldu', conversionStarted: 'Dönüştürme grubu başladı',
+    conversionCompleted: 'Dönüştürme grubu tamamlandı', zipStarted: 'ZIP oluşturma başladı',
+    zipCompleted: 'ZIP oluşturma tamamlandı', vaultExportStarted: 'Kasa dışa aktarımı başladı',
+    vaultExportCompleted: 'Kasa dışa aktarımı tamamlandı', vaultSaveStarted: 'Kasaya kaydetme başladı',
+    vaultSaveCompleted: 'Kasaya kaydetme tamamlandı', mediaStarted: 'Medya dönüştürme başladı',
+    mediaCompleted: 'Medya dönüştürme tamamlandı', archiveStarted: 'Arşiv çıkarma başladı',
+    archiveCompleted: 'Arşiv çıkarma tamamlandı', folderCompressionStarted: 'Klasör sıkıştırma başladı',
+    folderCompressionCompleted: 'Klasör sıkıştırma tamamlandı',
+    success: 'Başarılı', failed: 'Başarısız', cancelled: 'İptal edildi', unknown: 'Bilinmiyor',
+  },
+  ja: {
+    header: 'File Converter Pro 診断ログ',
+    successHeader: 'File Converter Pro 成功ログ',
+    date: '日付', duration: '所要時間', fileSize: 'ファイルサイズ', fromFormat: '変換元形式', toFormat: '変換先形式',
+    mediaConversion: 'メディア変換',
+    time: '時刻', event: 'イベント', function: '機能', file: 'ファイル', files: 'ファイル数',
+    count: '対象ファイル数', succeededCount: '成功', failedCount: '失敗', format: '形式', destination: '保存先',
+    status: '状態', error: 'エラー', stack: 'スタックトレース', exitCode: 'プロセス終了コード',
+    stderr: 'プロセス stderr', details: '詳細', reason: '理由',
+    unexpectedException: 'メインプロセスで予期しない例外', unhandledRejection: '未処理の Promise 拒否',
+    rendererCrash: 'レンダラープロセスがクラッシュしました', rendererException: 'レンダラーで予期しないエラー',
+    rendererRejection: 'レンダラーで未処理の Promise 拒否', childProcessCrash: '子プロセスがクラッシュしました',
+    operationStarted: '処理を開始しました', operationCompleted: '処理が完了しました',
+    operationFailed: '処理に失敗しました', conversionStarted: '変換バッチを開始しました',
+    conversionCompleted: '変換バッチが完了しました', zipStarted: 'ZIP の作成を開始しました',
+    zipCompleted: 'ZIP の作成が完了しました', vaultExportStarted: '保管庫のエクスポートを開始しました',
+    vaultExportCompleted: '保管庫のエクスポートが完了しました', vaultSaveStarted: '保管庫への保存を開始しました',
+    vaultSaveCompleted: '保管庫への保存が完了しました', mediaStarted: 'メディア変換を開始しました',
+    mediaCompleted: 'メディア変換が完了しました', archiveStarted: 'アーカイブの展開を開始しました',
+    archiveCompleted: 'アーカイブの展開が完了しました', folderCompressionStarted: 'フォルダー圧縮を開始しました',
+    folderCompressionCompleted: 'フォルダー圧縮が完了しました',
+    success: '成功', failed: '失敗', cancelled: 'キャンセル', unknown: '不明',
+  },
+  zh: {
+    header: 'File Converter Pro 诊断日志',
+    successHeader: 'File Converter Pro 成功日志',
+    date: '日期', duration: '耗时', fileSize: '文件大小', fromFormat: '源格式', toFormat: '目标格式',
+    mediaConversion: '媒体转换',
+    time: '时间', event: '事件', function: '功能', file: '文件', files: '文件数',
+    count: '文件数量', succeededCount: '成功', failedCount: '失败', format: '格式', destination: '目标位置',
+    status: '状态', error: '错误', stack: '堆栈跟踪', exitCode: '进程退出代码',
+    stderr: '进程标准错误', details: '详细信息', reason: '原因',
+    unexpectedException: '主进程发生意外异常', unhandledRejection: '未处理的 Promise 拒绝',
+    rendererCrash: '渲染进程崩溃', rendererException: '渲染器发生意外错误',
+    rendererRejection: '渲染器中存在未处理的 Promise 拒绝', childProcessCrash: '子进程崩溃',
+    operationStarted: '操作已开始', operationCompleted: '操作已完成',
+    operationFailed: '操作失败', conversionStarted: '转换批次已开始',
+    conversionCompleted: '转换批次已完成', zipStarted: 'ZIP 创建已开始',
+    zipCompleted: 'ZIP 创建已完成', vaultExportStarted: '保险库导出已开始',
+    vaultExportCompleted: '保险库导出已完成', vaultSaveStarted: '保险库存储已开始',
+    vaultSaveCompleted: '保险库存储已完成', mediaStarted: '媒体转换已开始',
+    mediaCompleted: '媒体转换已完成', archiveStarted: '压缩包提取已开始',
+    archiveCompleted: '压缩包提取已完成', folderCompressionStarted: '文件夹压缩已开始',
+    folderCompressionCompleted: '文件夹压缩已完成',
+    success: '成功', failed: '失败', cancelled: '已取消', unknown: '未知',
+  },
+};
+
+function currentCrashLogTranslations() {
+  return crashLogTranslations[crashLogLanguage] || crashLogTranslations.en;
+}
+
+function getLogPath(type, date = new Date()) {
+  const pad = value => String(value).padStart(2, '0');
+  const prefix = type === 'success' ? 'FCP-Succes' : 'FCP_Crash';
+  const fileName = `${prefix}_${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${pad(date.getFullYear() % 100)}_${pad(date.getHours())}-${pad(date.getMinutes())}.txt`;
+  return path.join(app.getPath('documents'), 'FCP_Logs', fileName);
+}
+
+async function writeLog(record, type, date = new Date()) {
+  const filePath = getLogPath(type, date);
+  const translations = currentCrashLogTranslations();
+  const header = type === 'success' ? translations.successHeader : translations.header;
+  if (record.event === 'conversionBatchSummary' && Array.isArray(record.groups)) {
+    const startedAt = new Date(record.startedAt);
+    const finishedAt = new Date(record.finishedAt);
+    const pad = value => String(value).padStart(2, '0');
+    const formatTime = value => `${pad(value.getHours())}:${pad(value.getMinutes())}:${pad(value.getSeconds())}`;
+    const formatDate = value => `${pad(value.getDate())}-${pad(value.getMonth() + 1)}-${value.getFullYear()}`;
+    const formatSize = bytes => `${new Intl.NumberFormat(crashLogLanguage, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(bytes / 1024 ** 2)}MB`;
+    const paragraphs = record.groups.map(group => {
+      const lines = [
+        `${translations.date}: ${formatDate(startedAt)}`,
+        `${translations.duration}: ${formatTime(startedAt)} - ${formatTime(finishedAt)}`,
+        `${translations.event}: ${translations.mediaConversion}`,
+        `${translations.function}: ${group.functionName || record.functionName || 'handleConvertAll'}`,
+      ];
+      if (group.fileName) lines.push(`${translations.file}: ${group.fileName}`);
+      lines.push(
+        `${translations.count}: ${group.count}`,
+        `${translations.fileSize}: ${formatSize(group.totalBytes)}`,
+        `${translations.fromFormat}: ${group.fromFormat}`,
+        `${translations.toFormat}: ${group.toFormat}`,
+        `${translations.status}: ${translations[group.status] || group.status}`,
+      );
+      for (const failure of group.failures || []) {
+        lines.push(`${translations.error}: ${failure.message}`);
+        if (failure.stack) lines.push(`${translations.stack}:\n${failure.stack}`);
+        if (failure.exitCode !== undefined && failure.exitCode !== null) lines.push(`${translations.exitCode}: ${failure.exitCode}`);
+        if (failure.stderr) lines.push(`${translations.stderr}:\n${String(failure.stderr).trim()}`);
+      }
+      return lines.join('\n');
+    });
+    return appendLogText(filePath, header, paragraphs.join('\n\n'), type);
+  }
+  const eventText = typeof record.event === 'string'
+    ? translations[record.event] || record.event
+    : translations.operationFailed;
+  const lines = [
+    `${translations.time}: ${date.toISOString()}`,
+    `${translations.event}: ${eventText}`,
+  ];
+  if (record.functionName) lines.push(`${translations.function}: ${record.functionName}`);
+  if (record.fileName) lines.push(`${translations.file}: ${record.fileName}`);
+  if (record.fileNames?.length) lines.push(`${translations.files}: ${record.fileNames.join(', ')}`);
+  if (record.count !== undefined) lines.push(`${translations.count}: ${record.count}`);
+  if (record.succeededCount !== undefined) lines.push(`${translations.succeededCount}: ${record.succeededCount}`);
+  if (record.failedCount !== undefined) lines.push(`${translations.failedCount}: ${record.failedCount}`);
+  if (record.format) lines.push(`${translations.format}: ${record.format}`);
+  if (record.destination) lines.push(`${translations.destination}: ${record.destination}`);
+  if (record.status) lines.push(`${translations.status}: ${translations[record.status] || record.status}`);
+  if (record.details) lines.push(`${translations.details}: ${record.details}`);
+  if (record.reason) lines.push(`${translations.reason}: ${record.reason}`);
+
+  const error = record.error;
+  if (error) {
+    const errorMessage = error instanceof Error ? error.message : error.message || String(error);
+    lines.push(`${translations.error}: ${errorMessage}`);
+    if (error.stack) lines.push(`${translations.stack}:\n${error.stack}`);
+    if (error?.exitCode !== undefined && error.exitCode !== null) lines.push(`${translations.exitCode}: ${error.exitCode}`);
+    if (error?.stderr) lines.push(`${translations.stderr}:\n${String(error.stderr).trim()}`);
+  }
+  if (record.exitCode !== undefined && record.exitCode !== null) lines.push(`${translations.exitCode}: ${record.exitCode}`);
+  if (record.stderr) lines.push(`${translations.stderr}:\n${String(record.stderr).trim()}`);
+
+  return appendLogText(filePath, header, lines.join('\n'), type);
+}
+
+async function appendLogText(filePath, header, text, type) {
+  const append = async () => {
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    try {
+      await fs.access(filePath);
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+      await fs.writeFile(filePath, `${header}\n${'='.repeat(header.length)}\n\n`, { flag: 'wx' });
+    }
+    await fs.appendFile(filePath, `${text}\n\n`, 'utf8');
+  };
+
+  const pendingWrite = crashLogWriteQueue.then(append, append);
+  crashLogWriteQueue = pendingWrite.catch(error => {
+    process.stderr.write(`Failed to write FCP ${type} log: ${error?.stack || error}\n`);
+  });
+  try {
+    await pendingWrite;
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
+function writeCrashLog(record) {
+  return writeLog(record, 'crash');
+}
+
+function writeSuccessLog(record) {
+  return writeLog(record, 'success');
+}
+
+function recordOperationLog(record, type = 'crash') {
+  if (activeOperationLogBatch) {
+    activeOperationLogBatch.records.push({ record, type });
+    return Promise.resolve(true);
+  }
+  return type === 'success' ? writeSuccessLog(record) : writeCrashLog(record);
+}
+
+async function finishOperationLogBatch(status, finalRecord, summary) {
+  const batch = activeOperationLogBatch;
+  activeOperationLogBatch = null;
+  if (!batch) return finalRecord ? writeCrashLog(finalRecord) : true;
+  if (status === 'cancelled' && !finalRecord) return true;
+  if (finalRecord) batch.records.push({ record: finalRecord, type: 'crash' });
+  const hasFailure = status === 'failed' || batch.records.some(({ record }) =>
+    record.status === 'failed' || Boolean(record.error)
+  );
+  const type = hasFailure ? 'crash' : 'success';
+  if (summary && Array.isArray(summary.groups)) {
+    if (!summary.groups.length) return true;
+    const groups = summary.groups.map(group => ({
+      ...group,
+      failures: Array.isArray(group.failures) ? [...group.failures] : [],
+    }));
+    for (const { record } of batch.records) {
+      if (!record.error) continue;
+      const fileNames = new Set([record.fileName, ...(record.fileNames || [])].filter(Boolean));
+      const matchingGroups = groups.filter(group =>
+        group.fileNames?.some(fileName => fileNames.has(fileName)) || (group.fileName && fileNames.has(group.fileName))
+      );
+      const targetGroups = matchingGroups.length ? matchingGroups : [groups[0]];
+      const error = record.error;
+      const failure = {
+        message: error instanceof Error ? error.message : error.message || String(error),
+        stack: error.stack,
+        exitCode: error.exitCode,
+        stderr: error.stderr,
+      };
+      for (const group of targetGroups) {
+        if (!group.failures.some(existing => existing.message === failure.message)) group.failures.push(failure);
+        group.status = 'failed';
+      }
+    }
+    return writeLog({
+      event: 'conversionBatchSummary',
+      functionName: 'handleConvertAll',
+      startedAt: summary.startedAt || batch.startedAt,
+      finishedAt: summary.finishedAt || new Date(),
+      groups,
+    }, type, batch.startedAt);
+  }
+  for (const { record } of batch.records) {
+    await writeLog(record, type, batch.startedAt);
+  }
+  return true;
+}
+
+function isSuccessLogRecord(record) {
+  if (record.error || record.status === 'failed') return false;
+  return record.status === 'success';
+}
+
+function isCancellationError(error) {
+  return /cancelled by the user|extraction was cancelled|operation was cancelled/i.test(
+    String(error?.message || error)
+  );
+}
+
+function getIpcCrashLogContext(channel, args) {
+  const context = { functionName: channel };
+  const options = args[0] && typeof args[0] === 'object' && !ArrayBuffer.isView(args[0]) ? args[0] : null;
+  const fileName = options?.fileName || options?.requestedFileName ||
+    (channel === 'fcp:convert-media' || channel === 'fcp:transcribe-audio' ? args[1] : null) ||
+    (channel === 'fcp:extract-archive' ? args[2] : null) ||
+    (channel === 'fcp:stage-file' ? args[1] : null) ||
+    (channel === 'fcp:delete-source-file' ? args[0] : null);
+  if (fileName) context.fileName = path.basename(String(fileName));
+  const targetFormat = options?.targetFormat ||
+    (channel === 'fcp:convert-media' || channel === 'fcp:transcribe-audio' ? args[2] : null);
+  if (targetFormat) context.format = String(targetFormat);
+  if (Number.isFinite(options?.count)) context.count = Number(options.count);
+  if (channel === 'fcp:export-vault-file') context.count = 1;
+  if (['fcp:convert-media', 'fcp:transcribe-audio', 'fcp:extract-archive'].includes(channel)) context.count = 1;
+  if (channel === 'fcp:compress-folders' && Array.isArray(args[0])) {
+    context.fileNames = args[0].map(folderPath => path.basename(String(folderPath)));
+    context.count = args[0].length;
+  }
+  return context;
+}
+
+const registerIpcHandler = ipcMain.handle.bind(ipcMain);
+ipcMain.handle = (channel, listener) => registerIpcHandler(channel, async (event, ...args) => {
+  if (['fcp:set-crash-log-language', 'fcp:write-crash-log', 'fcp:begin-operation-log-batch', 'fcp:complete-operation-log-batch'].includes(channel)) return listener(event, ...args);
+  const context = getIpcCrashLogContext(channel, args);
+  const operationLifecycle = {
+    'fcp:convert-media': ['mediaStarted', 'mediaCompleted'],
+    'fcp:transcribe-audio': ['mediaStarted', 'mediaCompleted'],
+    'fcp:extract-archive': ['archiveStarted', 'archiveCompleted'],
+    'fcp:compress-folders': ['folderCompressionStarted', 'folderCompressionCompleted'],
+    'fcp:save-vault-file': ['vaultSaveStarted', 'vaultSaveCompleted'],
+    'fcp:export-vault-file': ['vaultExportStarted', 'vaultExportCompleted'],
+  }[channel];
+
+  try {
+    const result = await listener(event, ...args);
+    const passwordPromptRequired = channel === 'fcp:extract-archive' && result?.passwordRequired === true;
+    if (operationLifecycle && channel !== 'fcp:compress-folders' && !passwordPromptRequired && result !== null) {
+      await recordOperationLog({ ...context, event: operationLifecycle[0], status: 'success' }, 'success');
+      await recordOperationLog({
+        ...context,
+        event: operationLifecycle[1],
+        status: 'success',
+      }, 'success');
+    }
+    if (channel === 'fcp:compress-folders' && Array.isArray(result)) {
+      const failed = result.filter(item => item.error);
+      const logType = failed.length ? 'crash' : 'success';
+      if (!failed.length) await recordOperationLog({ ...context, event: 'folderCompressionStarted', status: 'success' }, logType);
+      await recordOperationLog({
+        ...context,
+        event: 'folderCompressionCompleted',
+        status: failed.length ? 'failed' : 'success',
+        succeededCount: result.length - failed.length,
+        failedCount: failed.length,
+        details: failed.length ? failed.map(item => `${path.basename(item.folderPath)} (${item.error})`).join('; ') : undefined,
+      }, logType);
+    }
+    return result;
+  } catch (error) {
+    if (!isCancellationError(error)) {
+      await recordOperationLog({ ...context, event: 'operationFailed', status: 'failed', error }, 'crash');
+    }
+    throw error;
+  }
+});
+
+ipcMain.handle('fcp:set-crash-log-language', async (_event, language) => setCrashLogLanguage(language));
+ipcMain.handle('fcp:begin-operation-log-batch', async () => {
+  if (activeOperationLogBatch) await finishOperationLogBatch('failed');
+  activeOperationLogBatch = { startedAt: new Date(), records: [] };
+  return true;
+});
+ipcMain.handle('fcp:complete-operation-log-batch', async (_event, status, summary) => {
+  const finalStatus = status === 'failed' || status === 'cancelled' ? status : 'success';
+  return finishOperationLogBatch(finalStatus, undefined, summary);
+});
+ipcMain.handle('fcp:write-crash-log', async (_event, record) => {
+  if (!record || typeof record !== 'object') throw new Error('Invalid crash log event.');
+  const logRecord = {
+    event: String(record.event || 'operationFailed'),
+    functionName: record.functionName ? String(record.functionName) : undefined,
+    fileName: record.fileName ? path.basename(String(record.fileName)) : undefined,
+    fileNames: Array.isArray(record.fileNames) ? record.fileNames.map(name => path.basename(String(name))) : undefined,
+    count: Number.isFinite(record.count) ? Number(record.count) : undefined,
+    succeededCount: Number.isFinite(record.succeededCount) ? Number(record.succeededCount) : undefined,
+    failedCount: Number.isFinite(record.failedCount) ? Number(record.failedCount) : undefined,
+    format: record.format ? String(record.format) : undefined,
+    destination: record.destination ? String(record.destination) : undefined,
+    status: record.status ? String(record.status) : undefined,
+    details: record.details ? String(record.details) : undefined,
+    reason: record.reason ? String(record.reason) : undefined,
+    error: record.error && typeof record.error === 'object'
+      ? {
+        name: String(record.error.name || 'Error'),
+        message: String(record.error.message || ''),
+        stack: record.error.stack ? String(record.error.stack) : undefined,
+        exitCode: record.error.exitCode,
+        stderr: record.error.stderr ? String(record.error.stderr) : undefined,
+      }
+      : record.error ? String(record.error) : undefined,
+  };
+  if (logRecord.status === 'cancelled') return true;
+  return recordOperationLog(logRecord, isSuccessLogRecord(logRecord) ? 'success' : 'crash');
+});
+
+process.on('uncaughtException', (error, origin) => {
+  void finishOperationLogBatch('failed', {
+    event: 'unexpectedException',
+    functionName: 'process.uncaughtException',
+    reason: origin,
+    error,
+  }).finally(() => app.exit(1));
+});
+
+process.on('unhandledRejection', reason => {
+  const error = reason instanceof Error ? reason : new Error(String(reason));
+  void finishOperationLogBatch('failed', {
+    event: 'unhandledRejection',
+    functionName: 'process.unhandledRejection',
+    error,
+  });
+});
+
+app.on('child-process-gone', (_event, details) => {
+  void writeCrashLog({
+    event: 'childProcessCrash',
+    functionName: 'app.child-process-gone',
+    reason: `${details.type}: ${details.reason}`,
+    exitCode: details.exitCode,
+  });
+});
+
+async function setCrashLogLanguage(language) {
+  const normalizedLanguage = String(language || '').toLowerCase().split('-')[0];
+  if (!Object.hasOwn(crashLogTranslations, normalizedLanguage)) throw new Error('Unsupported crash log language.');
+  crashLogLanguage = normalizedLanguage;
+  await fs.writeFile(crashLogLanguagePath, JSON.stringify({ language: normalizedLanguage }), 'utf8');
+  return true;
+}
+
+async function loadCrashLogLanguage() {
+  try {
+    const settings = JSON.parse(await fs.readFile(crashLogLanguagePath, 'utf8'));
+    if (Object.hasOwn(crashLogTranslations, settings.language)) crashLogLanguage = settings.language;
+  } catch (error) {
+    if (error.code !== 'ENOENT') process.stderr.write(`Could not load crash log language: ${error.message}\n`);
+  }
+}
+
+function assertConversionNotCancelled(generation) {
+  if (generation !== conversionCancellationGeneration) throw new Error('Conversion cancelled by the user.');
+}
 
 const VAULT_MAGIC = 'FCPVAULT1';
 const VAULT_VERSION = 1;
+const VAULT_BINARY_MAGIC = Buffer.from('FCPVLT2\0');
 const VAULT_KDF_OPTIONS = { algorithm: 2, memoryCost: 65536, timeCost: 3, parallelism: 1, outputLen: 32 };
 
 async function readVaultConfig() {
@@ -286,54 +803,25 @@ async function saveVaultFileFromZipPath(config, key, sourcePath, fileName) {
   const entries = (await fs.readdir(vaultDirectory)).filter(name => name.endsWith('.fcpv'));
   const currentSize = (await Promise.all(entries.map(async name => (await fs.stat(path.join(vaultDirectory, name))).size))).reduce((sum, size) => sum + size, 0);
   const token = randomUUID();
-  const encryptedPayloadPath = path.join(vaultDirectory, `${token}.payload.tmp`);
   const containerTempPath = path.join(vaultDirectory, `${token}.container.tmp`);
+  const encryptedPayloadPath = path.join(vaultDirectory, `${token}.payload.tmp`);
   const storagePath = path.join(vaultDirectory, `${token}.fcpv`);
   const nonce = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv('aes-256-gcm', key, nonce);
 
-  const payload = Readable.from((async function* () {
-    yield Buffer.from(`{"fileName":${JSON.stringify(fileName)},"data":"`);
-    let pending = Buffer.alloc(0);
-    for await (const chunk of createReadStream(zipPath)) {
-      const combined = pending.length ? Buffer.concat([pending, chunk]) : chunk;
-      const completeLength = combined.length - combined.length % 3;
-      if (completeLength) yield Buffer.from(combined.subarray(0, completeLength).toString('base64'));
-      pending = combined.subarray(completeLength);
-    }
-    if (pending.length) yield Buffer.from(pending.toString('base64'));
-    yield Buffer.from('"}');
-  })());
-
-  const createBase64Transform = () => {
-    let pending = Buffer.alloc(0);
-    return new Transform({
-      transform(chunk, _encoding, callback) {
-        const combined = pending.length ? Buffer.concat([pending, chunk]) : chunk;
-        const completeLength = combined.length - combined.length % 3;
-        if (completeLength) this.push(combined.subarray(0, completeLength).toString('base64'));
-        pending = combined.subarray(completeLength);
-        callback();
-      },
-      flush(callback) {
-        if (pending.length) this.push(pending.toString('base64'));
-        callback();
-      },
-    });
-  };
-
   try {
-    await pipeline(payload, cipher, createWriteStream(encryptedPayloadPath, { flags: 'wx' }));
-    const containerPrefix = JSON.stringify({
+    await pipeline(createReadStream(zipPath), cipher, createWriteStream(encryptedPayloadPath, { flags: 'wx' }));
+    const header = Buffer.from(JSON.stringify({
       magic: VAULT_MAGIC,
-      version: VAULT_VERSION,
+      version: 2,
+      fileName: encryptVaultPayload(Buffer.from(fileName, 'utf8'), key),
       nonce: nonce.toString('base64'),
       tag: cipher.getAuthTag().toString('base64'),
-      data: '',
-    }).slice(0, -2);
-    await fs.writeFile(containerTempPath, containerPrefix, { flag: 'wx' });
-    await pipeline(createReadStream(encryptedPayloadPath), createBase64Transform(), createWriteStream(containerTempPath, { flags: 'a' }));
-    await fs.appendFile(containerTempPath, '"}');
+    }), 'utf8');
+    const headerLength = Buffer.alloc(4);
+    headerLength.writeUInt32BE(header.length);
+    await fs.writeFile(containerTempPath, Buffer.concat([VAULT_BINARY_MAGIC, headerLength, header]), { flag: 'wx' });
+    await pipeline(createReadStream(encryptedPayloadPath), createWriteStream(containerTempPath, { flags: 'a' }));
 
     const containerStats = await fs.stat(containerTempPath);
     if (currentSize + containerStats.size > config.quotaBytes) throw new Error('The vault quota has been reached.');
@@ -402,22 +890,42 @@ ipcMain.handle('fcp:list-vault-files', async (_event, options) => {
   await fs.mkdir(vaultDirectory, { recursive: true });
   const fileNames = (await fs.readdir(vaultDirectory)).filter(fileName => fileName.endsWith('.fcpv'));
   const files = await Promise.all(fileNames.map(async storageName => {
-    const stats = await fs.stat(path.join(vaultDirectory, storageName));
+    const storagePath = path.join(vaultDirectory, storageName);
+    const stats = await fs.stat(storagePath);
     let fileName = storageName;
     try {
-      const container = JSON.parse(await fs.readFile(path.join(vaultDirectory, storageName), 'utf8'));
-      const payload = decryptVaultPayload(container, key);
-      const metadata = JSON.parse(payload.toString('utf8'));
-      if (metadata?.fileName) fileName = path.basename(metadata.fileName);
+      const fileHandle = await fs.open(storagePath, 'r');
+      try {
+        const marker = Buffer.alloc(VAULT_BINARY_MAGIC.length);
+        const { bytesRead } = await fileHandle.read(marker, 0, marker.length, 0);
+        if (bytesRead === marker.length && marker.equals(VAULT_BINARY_MAGIC)) {
+          const lengthBuffer = Buffer.alloc(4);
+          await fileHandle.read(lengthBuffer, 0, lengthBuffer.length, VAULT_BINARY_MAGIC.length);
+          const headerLength = lengthBuffer.readUInt32BE();
+          if (headerLength > 64 * 1024) throw new Error('Invalid vault header.');
+          const headerBuffer = Buffer.alloc(headerLength);
+          await fileHandle.read(headerBuffer, 0, headerBuffer.length, VAULT_BINARY_MAGIC.length + 4);
+          const header = JSON.parse(headerBuffer.toString('utf8'));
+          if (header.magic !== VAULT_MAGIC || header.version !== 2) throw new Error('Unsupported vault container.');
+          if (header.fileName) fileName = path.basename(decryptVaultPayload(header.fileName, key).toString('utf8'));
+        } else if (stats.size <= 16 * 1024 * 1024) {
+          const container = JSON.parse(await fs.readFile(storagePath, 'utf8'));
+          const payload = decryptVaultPayload(container, key);
+          const metadata = JSON.parse(payload.toString('utf8'));
+          if (metadata?.fileName) fileName = path.basename(metadata.fileName);
+        }
+      } finally {
+        await fileHandle.close();
+      }
     } catch {
-      // Keep legacy containers visible; they can still be opened by read-vault-file.
+      // Keep damaged or legacy containers visible so the user can still attempt export.
     }
     return { storageName, fileName, bytes: stats.size, modifiedAt: stats.mtimeMs };
   }));
   return files.sort((left, right) => right.modifiedAt - left.modifiedAt);
 });
 
-ipcMain.handle('fcp:read-vault-file', async (_event, options) => {
+ipcMain.handle('fcp:export-vault-file', async (_event, options) => {
   const config = await readVaultConfig();
   if (!config) throw new Error('No vault is configured.');
   const key = await deriveVaultKey(String(options?.password || ''), config.salt);
@@ -425,16 +933,163 @@ ipcMain.handle('fcp:read-vault-file', async (_event, options) => {
   const storageName = path.basename(String(options?.storageName || ''));
   if (!storageName.endsWith('.fcpv')) throw new Error('Invalid vault file.');
   const storagePath = path.join(config.outputDirectory, '.fcp-vault', storageName);
-  const container = JSON.parse(await fs.readFile(storagePath, 'utf8'));
-  const payload = decryptVaultPayload(container, key);
+  const fileName = path.basename(String(options?.fileName || 'converted-files.zip'));
+  const result = await dialog.showSaveDialog({ defaultPath: fileName });
+  if (result.canceled || !result.filePath) return null;
+
+  const temporaryPath = path.join(path.dirname(result.filePath), `.${path.basename(result.filePath)}.${randomUUID()}.tmp`);
+  const handle = await fs.open(storagePath, 'r');
   try {
-    const metadata = JSON.parse(payload.toString('utf8'));
-    if (metadata?.data && metadata.fileName) return { fileName: path.basename(metadata.fileName), data: Buffer.from(metadata.data, 'base64') };
-  } catch {
-    // Legacy format stores the raw zip bytes directly in the encrypted payload.
+    const marker = Buffer.alloc(VAULT_BINARY_MAGIC.length);
+    const { bytesRead } = await handle.read(marker, 0, marker.length, 0);
+    if (bytesRead === marker.length && marker.equals(VAULT_BINARY_MAGIC)) {
+      const lengthBuffer = Buffer.alloc(4);
+      await handle.read(lengthBuffer, 0, lengthBuffer.length, VAULT_BINARY_MAGIC.length);
+      const headerLength = lengthBuffer.readUInt32BE();
+      if (!headerLength || headerLength > 64 * 1024) throw new Error('Invalid vault header.');
+      const headerBuffer = Buffer.alloc(headerLength);
+      await handle.read(headerBuffer, 0, headerBuffer.length, VAULT_BINARY_MAGIC.length + 4);
+      const header = JSON.parse(headerBuffer.toString('utf8'));
+      if (header.magic !== VAULT_MAGIC || header.version !== 2) throw new Error('Unsupported vault container.');
+      const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(header.nonce, 'base64'));
+      decipher.setAuthTag(Buffer.from(header.tag, 'base64'));
+      await pipeline(
+        createReadStream(storagePath, { start: VAULT_BINARY_MAGIC.length + 4 + headerLength }),
+        decipher,
+        createWriteStream(temporaryPath, { flags: 'wx' }),
+      );
+    } else {
+      await pipeline(
+        createReadStream(storagePath),
+        createLegacyVaultDecryptTransform(key),
+        createLegacyVaultPayloadTransform(),
+        createWriteStream(temporaryPath, { flags: 'wx' }),
+      );
+    }
+  } catch (error) {
+    await fs.rm(temporaryPath, { force: true });
+    throw error;
+  } finally {
+    await handle.close();
   }
-  return { fileName: 'converted-files.zip', data: payload };
+
+  try {
+    await fs.copyFile(temporaryPath, result.filePath);
+    return result.filePath;
+  } finally {
+    await fs.rm(temporaryPath, { force: true });
+  }
 });
+
+function createLegacyVaultDecryptTransform(key) {
+  let headerText = '';
+  let decipher = null;
+  let ciphertextRemainder = '';
+  const marker = ',"data":"';
+
+  return new Transform({
+    transform(chunk, _encoding, callback) {
+      try {
+        if (!decipher) {
+          headerText += chunk.toString('utf8');
+          const markerIndex = headerText.indexOf(marker);
+          if (markerIndex === -1) {
+            if (headerText.length > 64 * 1024) throw new Error('Invalid legacy vault container.');
+            callback();
+            return;
+          }
+          const container = JSON.parse(`${headerText.slice(0, markerIndex)}}`);
+          if (container.magic !== VAULT_MAGIC || container.version !== VAULT_VERSION) throw new Error('Unsupported vault container.');
+          decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(container.nonce, 'base64'));
+          decipher.setAuthTag(Buffer.from(container.tag, 'base64'));
+          const remainder = headerText.slice(markerIndex + marker.length);
+          headerText = '';
+          pushCiphertext(remainder, this);
+          callback();
+          return;
+        }
+        pushCiphertext(chunk.toString('ascii'), this);
+        callback();
+      } catch (error) {
+        callback(error);
+      }
+    },
+    flush(callback) {
+      try {
+        if (!decipher) throw new Error('Invalid legacy vault container.');
+        if (ciphertextRemainder) this.push(decipher.update(Buffer.from(ciphertextRemainder, 'base64')));
+        this.push(decipher.final());
+        callback();
+      } catch (error) {
+        callback(error);
+      }
+    },
+  });
+
+  function pushCiphertext(text, stream) {
+    const base64 = text.replace(/[^A-Za-z0-9+/=]/g, '');
+    const combined = ciphertextRemainder + base64;
+    const completeLength = combined.length - combined.length % 4;
+    if (completeLength) stream.push(decipher.update(Buffer.from(combined.slice(0, completeLength), 'base64')));
+    ciphertextRemainder = combined.slice(completeLength);
+  }
+}
+
+function createLegacyVaultPayloadTransform() {
+  let mode = null;
+  let prefix = Buffer.alloc(0);
+  let markerRemainder = '';
+  const marker = ',"data":"';
+
+  return new Transform({
+    transform(chunk, _encoding, callback) {
+      if (mode === 'raw') {
+        this.push(chunk);
+        callback();
+        return;
+      }
+      if (mode === 'base64') {
+        decodePayloadBase64(chunk.toString('ascii'), this);
+        callback();
+        return;
+      }
+
+      prefix = prefix.length ? Buffer.concat([prefix, chunk]) : chunk;
+      const prefixText = prefix.toString('utf8');
+      if (!prefixText.startsWith('{') && prefix.length >= 1) {
+        mode = 'raw';
+        this.push(prefix);
+        prefix = Buffer.alloc(0);
+        callback();
+        return;
+      }
+      const markerIndex = prefixText.indexOf(marker);
+      if (markerIndex !== -1) {
+        mode = 'base64';
+        decodePayloadBase64(prefixText.slice(markerIndex + marker.length), this);
+        prefix = Buffer.alloc(0);
+      } else if (prefix.length > 64 * 1024) {
+        mode = 'raw';
+        this.push(prefix);
+        prefix = Buffer.alloc(0);
+      }
+      callback();
+    },
+    flush(callback) {
+      if (mode === null) this.push(prefix);
+      if (mode === 'base64' && markerRemainder) this.push(Buffer.from(markerRemainder, 'base64'));
+      callback();
+    },
+  });
+
+  function decodePayloadBase64(text, stream) {
+    const base64 = text.replace(/[^A-Za-z0-9+/=]/g, '');
+    const combined = markerRemainder + base64;
+    const completeLength = combined.length - combined.length % 4;
+    if (completeLength) stream.push(Buffer.from(combined.slice(0, completeLength), 'base64'));
+    markerRemainder = combined.slice(completeLength);
+  }
+}
 
 ipcMain.handle('fcp:delete-vault-file', async (_event, options) => {
   const config = await readVaultConfig();
@@ -572,13 +1227,16 @@ ipcMain.handle('fcp:download-and-install-update', async (_event, update) => {
   return true;
 });
 ipcMain.handle('fcp:cancel-conversion', async () => {
-  if (activeConversionProcess && !activeConversionProcess.killed) {
-    activeConversionProcess.kill('SIGKILL');
+  conversionCancellationGeneration += 1;
+  for (const childProcess of activeConversionProcesses) {
+    cancelledConversionProcesses.add(childProcess);
+    if (!childProcess.killed) childProcess.kill('SIGKILL');
   }
   return true;
 });
 ipcMain.handle('fcp:get-wallpaper', () => readWallpaperConfig());
 ipcMain.handle('fcp:transcribe-audio', async (event, fileData, fileName, targetFormat) => {
+  const cancellationGeneration = conversionCancellationGeneration;
   const format = String(targetFormat || 'TXT').toUpperCase();
   const workDir = path.join(app.getPath('temp'), 'fcp-whisper', randomUUID());
   const extension = path.extname(fileName) || '.wav';
@@ -595,16 +1253,26 @@ ipcMain.handle('fcp:transcribe-audio', async (event, fileData, fileName, targetF
     }
 
     const ffmpegArgs = ['-y', '-i', inputPath, '-ar', '16000', '-ac', '1', '-c:a', 'pcm_s16le', normalizedPath];
+    assertConversionNotCancelled(cancellationGeneration);
     await new Promise((resolve, reject) => {
-      const process = spawn(nativeFfmpegPath, ffmpegArgs, { windowsHide: true });
-      activeConversionProcess = process;
+      const childProcess = spawn(nativeFfmpegPath, ffmpegArgs, { windowsHide: true });
+      activeConversionProcesses.add(childProcess);
       let stderr = '';
-      process.stderr.on('data', data => { stderr += data.toString(); });
-      process.on('error', reject);
-      process.on('close', code => {
-        activeConversionProcess = null;
+      childProcess.stderr.on('data', data => { stderr += data.toString(); });
+      childProcess.on('error', error => {
+        activeConversionProcesses.delete(childProcess);
+        reject(error);
+      });
+      childProcess.on('close', code => {
+        activeConversionProcesses.delete(childProcess);
+        if (cancelledConversionProcesses.has(childProcess)) return reject(new Error('Conversion cancelled by the user.'));
         if (code === 0) resolve();
-        else reject(new Error(stderr.trim() || `FFmpeg exited with code ${code}`));
+        else {
+          const error = new Error(stderr.trim() || `FFmpeg exited with code ${code}`);
+          error.exitCode = code;
+          error.stderr = stderr.trim();
+          reject(error);
+        }
       });
     });
 
@@ -615,6 +1283,7 @@ ipcMain.handle('fcp:transcribe-audio', async (event, fileData, fileName, targetF
       '-pp',
       format === 'SRT' ? '-osrt' : '-otxt'
     ];
+    assertConversionNotCancelled(cancellationGeneration);
     const result = await new Promise((resolve, reject) => {
       const childProcess = spawn(whisperExecutablePath, whisperArgs, {
         cwd: whisperRootPath,
@@ -626,7 +1295,7 @@ ipcMain.handle('fcp:transcribe-audio', async (event, fileData, fileName, targetF
             : process.env.PATH
         }
       });
-      activeConversionProcess = childProcess;
+      activeConversionProcesses.add(childProcess);
       let stdout = '';
       let stderr = '';
       let stderrProgressBuffer = '';
@@ -647,14 +1316,24 @@ ipcMain.handle('fcp:transcribe-audio', async (event, fileData, fileName, targetF
         stdout += text;
       });
       childProcess.stderr.on('data', reportProgress);
-      childProcess.on('error', reject);
+      childProcess.on('error', error => {
+        activeConversionProcesses.delete(childProcess);
+        reject(error);
+      });
       childProcess.on('close', code => {
-        activeConversionProcess = null;
+        activeConversionProcesses.delete(childProcess);
+        if (cancelledConversionProcesses.has(childProcess)) return reject(new Error('Conversion cancelled by the user.'));
         if (code === 0) resolve(stdout);
-        else reject(new Error(stderr.trim() || stdout.trim() || `Whisper exited with code ${code}`));
+        else {
+          const error = new Error(stderr.trim() || stdout.trim() || `Whisper exited with code ${code}`);
+          error.exitCode = code;
+          error.stderr = stderr.trim();
+          reject(error);
+        }
       });
     });
 
+    assertConversionNotCancelled(cancellationGeneration);
     const outputExtension = format === 'SRT' ? '.srt' : '.txt';
     const outputFile = (await fs.readdir(workDir)).find(name => name.toLowerCase().endsWith(outputExtension));
 
@@ -905,7 +1584,13 @@ ipcMain.handle('fcp:compress-folders', async (_event, requestedFolderPaths, requ
     await fs.rm(workDirectory, { recursive: true, force: true });
   }
 });
-ipcMain.handle('fcp:extract-archive', async (_event, requestedPath, requestedOutputDirectory, requestedFileName) => {
+ipcMain.handle('fcp:extract-archive', async (_event, requestedPath, requestedOutputDirectory, requestedFileName, requestedPassword) => {
+  const cancellationGeneration = conversionCancellationGeneration;
+  const password = typeof requestedPassword === 'string' ? requestedPassword : '';
+  const passwordRequiredResult = (invalidPassword = false) => ({ passwordRequired: true, invalidPassword });
+  const isArchivePasswordError = error => /wrong password|password.*incorrect|data error in encrypted file|cannot open encrypted archive|can not open encrypted archive|encrypted archive|break signaled/i.test(
+    `${error?.message || error}\n${error?.stderr || ''}`
+  );
   const stagingDirectory = path.resolve(app.getPath('temp'), 'fcp-staging');
   const sourcePath = path.resolve(String(requestedPath || ''));
   if (path.dirname(sourcePath) !== stagingDirectory) throw new Error('Invalid staged archive path.');
@@ -920,18 +1605,37 @@ ipcMain.handle('fcp:extract-archive', async (_event, requestedPath, requestedOut
   await fs.mkdir(outputDirectory, { recursive: true });
 
   const runSevenZip = (args) => new Promise((resolve, reject) => {
-    const process = spawn(sevenZipPath, args, { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    assertConversionNotCancelled(cancellationGeneration);
+    const processArgs = password ? [...args, `-p${password}`] : args;
+    const childProcess = spawn(sevenZipPath, processArgs, { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    activeConversionProcesses.add(childProcess);
     let stdout = '';
     let stderr = '';
     let stdoutExceededLimit = false;
-    process.stdout.on('data', chunk => {
+    childProcess.stdout.on('data', chunk => {
       if (stdout.length + chunk.length > 4 * 1024 * 1024) stdoutExceededLimit = true;
       else stdout += chunk.toString();
     });
-    process.stderr.on('data', chunk => { if (stderr.length < 1024 * 1024) stderr += chunk.toString(); });
-    process.on('error', reject);
-    process.on('close', code => {
-      if (code !== 0) return reject(new Error(`7-Zip failed with code ${code}: ${(stderr || stdout).trim().slice(-800)}`));
+    childProcess.stderr.on('data', chunk => { if (stderr.length < 1024 * 1024) stderr += chunk.toString(); });
+    childProcess.on('error', error => {
+      activeConversionProcesses.delete(childProcess);
+      reject(error);
+    });
+    childProcess.on('close', code => {
+      activeConversionProcesses.delete(childProcess);
+      if (cancelledConversionProcesses.has(childProcess)) {
+        const error = new Error('Archive extraction was cancelled by the user.');
+        error.exitCode = code;
+        error.stderr = stderr.trim();
+        return reject(error);
+      }
+      if (code !== 0) {
+        const error = new Error(`7-Zip failed with code ${code}: ${(stderr || stdout).trim().slice(-800)}`);
+        error.exitCode = code;
+        error.stderr = stderr.trim();
+        error.code = code;
+        return reject(error);
+      }
       if (stdoutExceededLimit) return reject(new Error('Archive listing exceeds the 4 MB safety limit.'));
       resolve(stdout);
     });
@@ -943,10 +1647,12 @@ ipcMain.handle('fcp:extract-archive', async (_event, requestedPath, requestedOut
     const listingRecords = entrySection.split(/\r?\n\r?\n/);
     let entryCount = 0;
     let expandedBytes = 0;
+    let hasEncryptedEntries = false;
     for (const record of listingRecords) {
       const entryPath = record.match(/^Path = (.*)$/m)?.[1];
       if (!entryPath) continue;
       entryCount += 1;
+      if (/^Encrypted = \+$/m.test(record)) hasEncryptedEntries = true;
       const normalizedEntryPath = entryPath.replace(/\\/g, '/');
       const normalizedPath = path.posix.normalize(normalizedEntryPath);
       if (normalizedPath === '..' || normalizedPath.startsWith('../') || normalizedPath.startsWith('/') || /^[a-z]:/i.test(normalizedPath)) {
@@ -958,8 +1664,16 @@ ipcMain.handle('fcp:extract-archive', async (_event, requestedPath, requestedOut
       if (entryCount > 50000) throw new Error('Archive contains more than 50,000 entries.');
       if (expandedBytes > 100 * 1024 ** 3) throw new Error('Archive expands to more than 100 GB.');
     }
+    return hasEncryptedEntries;
   };
-  await validateArchive(sourcePath);
+  let hasEncryptedEntries;
+  try {
+    hasEncryptedEntries = await validateArchive(sourcePath);
+  } catch (error) {
+    if (isArchivePasswordError(error)) return passwordRequiredResult(Boolean(password));
+    throw error;
+  }
+  if (hasEncryptedEntries && !password) return passwordRequiredResult();
 
   const archiveFileName = path.basename(String(requestedFileName || sourcePath));
   const archiveBaseName = archiveFileName.replace(/\.(?:tar\.(?:gz|bz2|xz|lzma)|tgz|tbz|tbz2|txz)$/i, '').replace(/\.[^.]+$/, '')
@@ -974,6 +1688,7 @@ ipcMain.handle('fcp:extract-archive', async (_event, requestedPath, requestedOut
   const containsTarLayer = /\.(?:tar\.(?:gz|bz2|xz|lzma)|tgz|tbz|tbz2|txz)$/i.test(archiveFileName);
   const intermediateDirectory = path.join(app.getPath('temp'), 'fcp-archive-nested', randomUUID());
   try {
+    assertConversionNotCancelled(cancellationGeneration);
     if (containsTarLayer) {
       await fs.mkdir(intermediateDirectory, { recursive: true });
       await runSevenZip(['x', '-y', '-bso0', '-bsp0', `-o${intermediateDirectory}`, sourcePath]);
@@ -988,6 +1703,7 @@ ipcMain.handle('fcp:extract-archive', async (_event, requestedPath, requestedOut
     return extractionPath;
   } catch (error) {
     await fs.rm(extractionPath, { recursive: true, force: true });
+    if (isArchivePasswordError(error)) return passwordRequiredResult(Boolean(password));
     throw error;
   } finally {
     await fs.rm(intermediateDirectory, { recursive: true, force: true });
@@ -1005,6 +1721,7 @@ ipcMain.handle('fcp:disable-wallpaper', async () => {
   return { enabled: false, path: current.path, type: null, dataUrl: null, videoUrl: null };
 });
 ipcMain.handle('fcp:convert-media', async (event, fileData, fileName, targetFormat) => {
+  const cancellationGeneration = conversionCancellationGeneration;
   const workDir = path.join(app.getPath('temp'), 'fcp', randomUUID());
   const extension = path.extname(fileName) || '.bin';
   const inputPath = typeof fileData === 'string' ? fileData : path.join(workDir, `input${extension}`);
@@ -1046,9 +1763,10 @@ ipcMain.handle('fcp:convert-media', async (event, fileData, fileName, targetForm
     };
 
     const runFfmpeg = async (ffmpegArgs, useGpu = true) => {
+      assertConversionNotCancelled(cancellationGeneration);
       await new Promise((resolve, reject) => {
-        const process = spawn(nativeFfmpegPath, ffmpegArgs, { windowsHide: true });
-        activeConversionProcess = process;
+        const childProcess = spawn(nativeFfmpegPath, ffmpegArgs, { windowsHide: true });
+        activeConversionProcesses.add(childProcess);
         let errorOutput = '';
         let lastOutputAt = Date.now();
         let durationSeconds = 0;
@@ -1056,13 +1774,15 @@ ipcMain.handle('fcp:convert-media', async (event, fileData, fileName, targetForm
 
         const timeoutId = setInterval(() => {
           if (Date.now() - lastOutputAt > 60000) {
-            if (!process.killed) process.kill('SIGKILL');
+            if (!childProcess.killed) childProcess.kill('SIGKILL');
             clearInterval(timeoutId);
-            reject(new Error(useGpu ? 'Conversion stalled for over 60 seconds, switching to software encoding.' : 'Conversion stalled for over 60 seconds and was cancelled.'));
+            const error = new Error(useGpu ? 'Conversion stalled for over 60 seconds, switching to software encoding.' : 'Conversion stalled for over 60 seconds and was cancelled.');
+            error.stderr = errorOutput.trim();
+            reject(error);
           }
         }, 2000);
 
-        process.stderr.on('data', data => {
+        childProcess.stderr.on('data', data => {
           const text = data.toString();
           errorOutput += text;
           lastOutputAt = Date.now();
@@ -1079,15 +1799,22 @@ ipcMain.handle('fcp:convert-media', async (event, fileData, fileName, targetForm
             event.sender.send('fcp:media-progress', { fileName, progress, etaSeconds });
           }
         });
-        process.on('error', error => {
+        childProcess.on('error', error => {
           clearInterval(timeoutId);
+          activeConversionProcesses.delete(childProcess);
           reject(error);
         });
-        process.on('close', code => {
+        childProcess.on('close', code => {
           clearInterval(timeoutId);
-          activeConversionProcess = null;
+          activeConversionProcesses.delete(childProcess);
+          if (cancelledConversionProcesses.has(childProcess)) return reject(new Error('Conversion cancelled by the user.'));
           if (code === 0) resolve();
-          else reject(new Error(summarizeFfmpegError(errorOutput) || `FFmpeg exited with code ${code}`));
+          else {
+            const error = new Error(summarizeFfmpegError(errorOutput) || `FFmpeg exited with code ${code}`);
+            error.exitCode = code;
+            error.stderr = errorOutput.trim();
+            reject(error);
+          }
         });
       });
     };
@@ -1095,6 +1822,7 @@ ipcMain.handle('fcp:convert-media', async (event, fileData, fileName, targetForm
     try {
       await runFfmpeg(buildArgs(true), true);
     } catch (error) {
+      assertConversionNotCancelled(cancellationGeneration);
       const message = String(error || '');
       if (canUseGpuEncoder && /stalled for over 60 seconds|SIGKILL|timed out/i.test(message)) {
         await runFfmpeg(buildArgs(false), false);
@@ -1103,9 +1831,9 @@ ipcMain.handle('fcp:convert-media', async (event, fileData, fileName, targetForm
       }
     }
 
+    assertConversionNotCancelled(cancellationGeneration);
     return await fs.readFile(outputPath);
   } finally {
-    activeConversionProcess = null;
     await fs.rm(workDir, { recursive: true, force: true });
   }
 });
@@ -1154,6 +1882,7 @@ function loadDevelopmentPage(window, attempt = 0) {
 }
 
 app.whenReady().then(async () => {
+  await loadCrashLogLanguage();
   registerWallpaperProtocol();
   await fs.rm(path.join(app.getPath('temp'), 'fcp-staging'), { recursive: true, force: true });
   const splash = createSplashWindow();

@@ -4,7 +4,24 @@ All major changes to File Converter Pro are recorded in this file.
 
 This project uses the structure of [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and follows [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.2.4] - 2026-10-24
+
+### Added
+
+- Automatically create localized diagnostic logs in the user's Documents/FCP_Logs folder for crashes, failed operations, conversions, ZIP creation and vault exports
+- Include timestamps, involved file names, function names, stack traces, and FFmpeg exit codes and stderr when available
+- Prompt for passwords when extracting encrypted ZIP/7Z archives and report process exit details with tool-neutral labels
+- Separate successful operation records into localized `FCP-Succes_DD-MM-JJ_HH-MM.txt` logs; keep failures and crashes in `FCP_Crash_DD-MM-YY_HH-MM.txt`
+- Keep all conversion records in a single log file per batch, choosing the success or crash log based on the batch outcome
+- Summarize each conversion batch with one paragraph per source/target format pair, including date, duration, file count, and total input size
+
+### Fixed
+
+- Fixed vault export failures for files larger than 2 GiB by streaming decryption instead of loading the entire file into memory
+- Preserved export support for vault files created by earlier app versions
+- Restored the cancel-conversion button for the entire duration of a conversion batch
+- Cancelling now stops all active FFmpeg/Whisper processes and skips files still waiting in the queue
+- Archive extraction can now be cancelled cleanly, and its logs include the 7-Zip exit code and stderr
 
 ## 1.2.3
 

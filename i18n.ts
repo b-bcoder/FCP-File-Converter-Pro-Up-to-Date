@@ -236,6 +236,18 @@ export const translations = {
   password_label: {
     en: "Password", nl: "Wachtwoord", tr: "Şifre", zh: "密码", ja: "パスワード", fr: "Mot de passe", de: "Passwort",
   },
+  archive_password_title: {
+    en: "Encrypted archive", nl: "Versleuteld archief", tr: "Şifrelenmiş arşiv", zh: "加密压缩包", ja: "暗号化されたアーカイブ", fr: "Archive chiffrée", de: "Verschlüsseltes Archiv",
+  },
+  archive_password_info: {
+    en: "Enter the password to extract this archive:", nl: "Voer het wachtwoord in om dit archief uit te pakken:", tr: "Bu arşivi çıkarmak için parolayı girin:", zh: "请输入密码以解压此压缩包：", ja: "このアーカイブを展開するパスワードを入力してください:", fr: "Saisissez le mot de passe pour extraire cette archive :", de: "Geben Sie das Passwort ein, um dieses Archiv zu entpacken:",
+  },
+  archive_password_invalid: {
+    en: "That password did not work. Please try again.", nl: "Dat wachtwoord werkt niet. Probeer het opnieuw.", tr: "Bu parola işe yaramadı. Lütfen tekrar deneyin.", zh: "密码不正确，请重试。", ja: "パスワードが正しくありません。もう一度お試しください。", fr: "Ce mot de passe ne fonctionne pas. Veuillez réessayer.", de: "Dieses Passwort ist falsch. Bitte versuchen Sie es erneut.",
+  },
+  continue: {
+    en: "Continue", nl: "Doorgaan", tr: "Devam et", zh: "继续", ja: "続行", fr: "Continuer", de: "Weiter",
+  },
   confirm_password_label: {
     en: "Confirm Password", nl: "Bevestig wachtwoord", tr: "Şifreyi Onayla", zh: "确认密码", ja: "パスワードを確認", fr: "Confirmer le mot de passe", de: "Passwort bestätigen",
   },
