@@ -1,4 +1,6 @@
 # File Converter Pro (FCP)
+<a href="https://sourceforge.net/projects/fcp-file-converter-pro/files/latest/download"><img alt="Download FCP-File-Converter-Pro-Up-to-Date" src="https://img.shields.io/sourceforge/dm/fcp-file-converter-pro.svg" ></a>
+<a href="https://sourceforge.net/projects/fcp-file-converter-pro/files/latest/download"><img alt="Download FCP-File-Converter-Pro-Up-to-Date" src="https://img.shields.io/sourceforge/dt/fcp-file-converter-pro.svg" ></a>
 
 **File Converter Pro** is a program for Windows that allows you to convert, edit, and process a wide variety of files locally on your own computer.
 
