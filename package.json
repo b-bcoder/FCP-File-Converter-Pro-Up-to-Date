@@ -35,7 +35,7 @@
     "lzma-native": "^8.0.6",
     "mammoth": "^1.2.5",
     "openskp": "^1.5.0",
-    "pdfjs-dist": "^6.2.108",
+    "pdfjs-dist": "^6.5.438",
     "react": "^19.2.8",
     "react-dom": "^19.3.0",
     "sharp": "^0.35.5",
